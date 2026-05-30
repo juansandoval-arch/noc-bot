@@ -1,0 +1,1140 @@
+{
+  "name": "NOC bot",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        5936,
+        5280
+      ],
+      "id": "9805669c-e8e7-4fdc-a5c5-000058f71986",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "channel",
+        "operation": "history",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "filters": {
+          "oldest": "={{ $now.minus(5, 'minute').toISO() }}"
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        6128,
+        5280
+      ],
+      "id": "8a744767-d227-4544-8fc4-2da10cb7df1a",
+      "name": "Get the history of a channel",
+      "webhookId": "56afb369-7f6e-48f8-9d45-79a3e46297d3",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "usuario",
+              "value": "={{ $json.user }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "mensaje",
+              "value": "={{ $json.text || ($json.attachments ? (($json.attachments[0].title ? $json.attachments[0].title + \"\\n\" : \"\") + ($json.attachments[0].pretext || \"\") + ($json.attachments[0].text || $json.attachments[0].fallback || \"\")) : \"\") }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "canal",
+              "value": "={{ $json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "timestamp",
+              "value": "={{ $json.ts }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "fecha_formateada",
+              "value": "={{ DateTime.fromSeconds(parseInt($json.ts.split('.')[0])).toFormat('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "tipo_evento",
+              "value": "={{ $json.type }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "thread_ts",
+              "value": "={{ $json.thread_ts || null }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "reply_count",
+              "value": "={{ $json.reply_count || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "9",
+              "name": "subtype",
+              "value": "={{ $json.subtype || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "d9c14ec1-5f0a-461e-9f02-fbf7cb4b6b2f",
+              "name": "attachments",
+              "value": "={{ $json.attachments }}",
+              "type": "array"
+            },
+            {
+              "id": "monitor-url-fix",
+              "name": "monitor_url",
+              "value": "={{ $json.attachments ? ($json.attachments[0].title_link || \"\") : \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": "={{ false }}",
+        "options": {}
+      },
+      "id": "f119754c-ac3b-4ef4-8e6a-a10afa73abfb",
+      "name": "Formatear Mensaje",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6336,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.mensaje }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e79f457-009b-4c4c-ba85-0ee5306aabd8",
+      "name": "Tiene contenido",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        6528,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ════════════════════════════════════════════════════════════════\n// CATÁLOGO DE RUNBOOKS (15 runbooks integrados)\n// ════════════════════════════════════════════════════════════════\nconst RUNBOOKS = {\n  \"RUNBOOK-001\": {\n    \"id\": \"RUNBOOK-001\",\n    \"nombre\": \"High CPU en servicio ECS\",\n    \"alert_type\": \"ECS_CPU\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nEn Datadog, abre la alerta y revisa las etiquetas (servicename, Region).\\nIdentifica si el impacto es en una sola task o en varias.\\nVerificar la métrica en Datadog\\nAbre el dashboard de Infra del servicio → filtra por el service_name del evento.\\nRevisa la tendencia de CPU Utilization (%) durante los últimos 30 minutos.\\nRevisar el estado del servicio ECS en AWS Console\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\\nSi Running tasks = Desired tasks → El servicio está saludable en cuanto a cantidad\\nSi Running tasks < Desired tasks → Hay tareas que no están arrancando (investigar en \\\"Events\\\" y \\\"Stopped Tasks\\\")\\n3.2 Pestaña \\\"Tasks\\\"\\nFiltra por Running tasks:\\nClick en cada task ID para ver detalles individuales\\nVerifica que todas las tasks tengan Last Status: RUNNING\",\n    \"accion\": \"Verificar si hay autoscaling configurado\\nECS → Clusters → [Cluster] → Services → [Service Name] → Pestaña \\\"Auto Scaling\\\"\\nRevisa:\\nScalable targets: Si hay configurado \\\"ECS Service Desired Count\\\"\\nScaling policies: Si existen políticas activas (Target Tracking o Step Scaling)\\nCurrent capacity: Minimum tasks, Desired tasks, Maximum tasks\\nSi la CPU se mantiene alta por más de 15 minutos y el servicio tiene autoscaling configurado, verificar en AWS si ya hay incremento de réplicas (desiredCount).\\nSi NO hay scaling automático, notificar a N2 (Cloud).\\nSi el servicio está degradado (tasks reiniciándose o sin respuesta), recrear las tasks manualmente:\\nEn AWS ECS Console → Service → Update → Force new deployment\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nLa CPU sigue >85% durante más de 20 minutos.\\nHay tasks en estado “Stopped” con errores.\\nEl autoscaling no se activó.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nTimestamp de la alerta y duración.\\nCaptura o link al gráfico de CPU en Datadog.\\nLogs de ECS Task (si visibles).\\nEscalar a N3 (Ingeniería) sólo si N2 confirma problema de aplicación (loop, memory leak, etc.).\"\n  },\n  \"RUNBOOK-002\": {\n    \"id\": \"RUNBOOK-002\",\n    \"nombre\": \"High Memory en servicio ECS\",\n    \"alert_type\": \"ECS_MEMORY\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nEn Datadog, abrir la alerta y revisar etiquetas (servicename, region).\\nVerificar la métrica en Datadog\\nRevisar la tendencia de Memory Utilization (%) durante los últimos 30 minutos.\\nRevisar el estado del servicio ECS en AWS Console\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\\nSi Running tasks = Desired tasks → El servicio está saludable en cuanto a cantidad\\nSi Running tasks < Desired tasks → Hay tareas que no están arrancando (investigar en \\\"Events\\\" y \\\"Stopped Tasks\\\")\\n3.2 Pestaña \\\"Tasks\\\"\\nFiltra por Running tasks:\\nClick en cada task ID para ver detalles individuales\\nVerifica que todas las tasks tengan Last Status: RUNNING\\nOrdena por \\\"Started at\\\" para identificar tasks recién reiniciadas\\nTask definition: Versión actual del task definition (ej: my-service:42)\",\n    \"accion\": \"Verificar si hay autoscaling configurado\\nECS → Clusters → [Cluster] → Services → [Service Name] → Pestaña \\\"Auto Scaling\\\"\\nRevisa:\\nScalable targets: Si hay configurado \\\"ECS Service Desired Count\\\"\\nScaling policies: Si existen políticas activas (Target Tracking o Step Scaling)\\nCurrent capacity: Minimum tasks, Desired tasks, Maximum tasks\\nSi el consumo de memoria es alto de forma continua (>90% por más de 15 minutos):\\nNotificar a N2 (Cloud) para revisar si el contenedor requiere más memoria asignada o si hay fuga de memoria.\\nSi hay tareas reiniciadas por OOM, informar de inmediato a N2.\\n⚠️ No escalar manualmente ni reiniciar tareas si el autoscaling está activo.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nHigh Memory > 90% sostenido.\\nTasks reiniciadas por “OutOfMemoryError”.\\nInformación a entregar:\\nNombre del servicio y cluster.\\nTiempo de inicio de la alerta y duración.\\nLinks de métricas y logs.\\nEscalar a N3 (Ingeniería) si se confirma fuga de memoria o configuración incorrecta en el contenedor.\"\n  },\n  \"RUNBOOK-003\": {\n    \"id\": \"RUNBOOK-003\",\n    \"nombre\": \"Low Storage en instancia o contenedor\",\n    \"alert_type\": \"ECS_STORAGE\",\n    \"diagnostico\": \"Confirmar la alerta en Datadog\\nRevisar la métrica ecs.containerinsights.EphemeralStorageUtilize.\\nIdentificar la instancia, servicio o contenedor afectado.\\nValidar en AWS Console (ECS)\\nEn ECS: verificar las metricas de container insights, la metrica Ephemeral Storage Utilization\\nRevisar el estado del servicio ECS en AWS Console\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\\nSi Running tasks = Desired tasks → El servicio está saludable en cuanto a cantidad\\nSi Running tasks < Desired tasks → Hay tareas que no están arrancando (investigar en \\\"Events\\\" y \\\"Stopped Tasks\\\")\\n3.2 Pestaña \\\"Tasks\\\"\\nFiltra por Running tasks:\\nClick en cada task ID para ver detalles individuales\\nVerifica que todas las tasks tengan Last Status: RUNNING\\nOrdena por \\\"Started at\\\" para identificar tasks recién reiniciadas\",\n    \"accion\": \"Si el servicio está activo y estable:\\nNotificar a N2 (Cloud) para análisis del volumen.\\nSi el servicio está degradado o no responde:\\nNotificar de inmediato a N2 y marcar alerta como “critical”.\\nNo eliminar archivos manualmente ni reiniciar contenedores sin autorización.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nEspacio libre < 30%.\\nEl servicio deja de reportar métricas.\\nInformación a entregar:\\nNombre del host o servicio afectado.\\nRegión y tipo de volumen.\\nCaptura de métricas.\\nEscalar a N3 (Ingeniería) si el problema es causado por logs excesivos o fugas de archivos temporales.\"\n  },\n  \"RUNBOOK-004\": {\n    \"id\": \"RUNBOOK-004\",\n    \"nombre\": \"High Task Count servicio ECS\",\n    \"alert_type\": \"ECS_HIGH_TASK\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nRevisar en Datadog las etiquetas (service, cluster, region).\\nRevisar el estado del servicio ECS en AWS Console\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n2.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\\nSi Running tasks = Desired tasks → El servicio está saludable en cuanto a cantidad\\nSi Running tasks < Desired tasks → Hay tareas que no están arrancando (investigar en \\\"Events\\\" y \\\"Stopped Tasks\\\")\\n2.2 Pestaña \\\"Tasks\\\"\\nFiltra por Running tasks:\\nClick en cada task ID para ver detalles individuales\\nVerifica que todas las tasks tengan Last Status: RUNNING\\nOrdena por \\\"Started at\\\" para identificar tasks recién reiniciadas\\nTask definition: Versión actual del task definition (ej: my-service:42)\\nDeployment: Revisar si hay un deployment en progreso\\nStatus: PRIMARY (estable) vs ACTIVE (en despliegue)\",\n    \"accion\": \"Si las tasks se están reiniciando por error, realizar:\\nValidar logs recientes en CloudWatch.\\nSi hay errores de contenedor o networking, escalar a N2.\\nSi pendingCount > 0 por más de 10 minutos, podría haber falta de capacidad en Fargate o problemas de IAM.\\nEscalar inmediatamente a N2 (Cloud).\\nSi runningCount > desiredcount por más de 10 minutos, podría ser un consumo alto de recursos del servicio, revisar los logs del servicio si hay muchos errores.\\nEscalar inmediatamente a N2 (Cloud).\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nrunningCount < desiredCount por más de 10 minutos.\\nrunningCount > desiredCount por más de 10 minutos.\\nErrores de scheduling o capacidad insuficiente.\\nInformación a entregar:\\nNombre del servicio y cluster.\\nRegión.\\nCapturas de Datadog y ECS Console.\\nEscalar a N3 (Ingeniería) si el problema es causado por configuración del contenedor o fallo en la aplicación.\"\n  },\n  \"RUNBOOK-005\": {\n    \"id\": \"RUNBOOK-005\",\n    \"nombre\": \"Network Throughput anómalo en servicio ECS\",\n    \"alert_type\": \"ECS_NETWORK\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nRevisar la alerta en Datadog → validar etiquetas (servicename, region).\\nAbrir el dashboard de infra del equipo en Datadog\\nBuscar el grupo de widgets del servicio y observar las métricas:\\nECS Networking Throughput\\nAnalizar tendencia de Throughput\\nRevisar el comportamiento en las últimas 2 horas.\\nComparar con el histórico de días anteriores (tráfico esperado).\\nValidar el estado del servicio en ECS\\nEn AWS Console → ECS → Clusters → [Cluster] → Services → [Service Name]\\nConfirmar que todas las tasks estén en estado Running.\\nRevisar si hay despliegues o eventos recientes\\nValidar si hubo cambios o releases en los últimos 30 minutos (Harness).\\nEsto puede explicar picos por reinicio o tráfico transitorio.\",\n    \"accion\": \"Si el throughput alto es transitorio (≤10 minutos) y el servicio responde correctamente → no requiere acción inmediata.\\nSi el throughput bajo persiste y el servicio presenta lentitud o timeout:\\nConfirmar si otras métricas (CPU / Memory) están normales.\\nSi hay degradación de respuesta, notificar a N2 (Cloud).\\nSi el throughput alto causa saturación de red o errores 5xx, escalar inmediatamente a N2 (Cloud).\\n⚠️ No reiniciar tareas ni modificar configuración de red sin instrucción de N2.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nThroughput fuera del rango esperado por más de 15 minutos.\\nHay correlación con errores de red, latencia o timeouts.\\nLa métrica muestra tráfico nulo y el servicio sigue activo.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nValor actual y promedio histórico de Throughput (Rx/Tx).\\nCaptura del gráfico en Datadog.\\nÚltimos logs del servicio.\\nEscalar a N3 (Ingeniería) si se identifica un patrón anómalo en el código o una dependencia externa (API, DB, etc.) causando tráfico irregular.\"\n  },\n  \"RUNBOOK-006\": {\n    \"id\": \"RUNBOOK-006\",\n    \"nombre\": \"ALB errors en servicio ECS\",\n    \"alert_type\": \"ALB_RESPONSE_TIME\",\n    \"diagnostico\": \"1. Confirmar el servicio afectado\\nRevisar la alerta en Datadog → validar etiquetas (servicename, alb_name, region).\\nConfirmar si la alerta corresponde a High 4xx, High 5xx, o High Latency.\\nAbrir el dashboard de infraestructura correspondiente al entorno o equipo\\n2. Analizar el comportamiento del ALB en Datadog\\nEn el grupo de widgets del servicio, revisar:\\naws.applicationelb.httpcode_target_4xx_count\\naws.applicationelb.httpcode_target_5xx_count\\naws.applicationelb.target_response_time\\naws.applicationelb.request_count\\nComparar los picos con el tráfico normal de los últimos días.\\nValidar si los errores o la latencia coinciden con horarios de alto tráfico o despliegues recientes.\\n3. Verificar la capa de aplicación\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\",\n    \"accion\": \"🔸 High 4xx Errors\\nValidar si los errores provienen de peticiones inválidas o mal formadas.\\nSi los errores son de tipo 429 (Too Many Requests), revisar:\\nPolíticas de rate limiting.\\nPosible exceso de tráfico desde un origen específico.\\nSi los errores son 404 frecuentes → confirmar rutas o endpoints removidos recientemente.\\nSi no hay degradación visible, no requiere acción inmediata.\\n🔸 High 5xx Errors\\nConfirmar si los errores 5xx provienen del ALB (502, 503, 504) o de la aplicación (500):\\nSi provienen del ALB → revisar health checks y estado de las targets.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nLos errores 4xx o 5xx se mantienen por más de 15 minutos.\\nHay correlación con latencia alta o caídas de targets.\\nEl ALB muestra tráfico nulo o health checks fallando.\\nEl servicio presenta timeouts, unhealthy tasks, o impacto visible en usuarios.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nTipo de error (4xx, 5xx, latency) y valor actual vs histórico.\\nCapturas de Datadog (métricas de ALB y ECS).\\nÚltimos logs de CloudWatch del servicio y del ALB.\"\n  },\n  \"RUNBOOK-007\": {\n    \"id\": \"RUNBOOK-007\",\n    \"nombre\": \"Backlog en broker Pulsar\",\n    \"alert_type\": \"PULSAR_BACKLOG\",\n    \"diagnostico\": \"Identificar el consumidor afectado\\nRevisar el monitor de Datadog para localizar qué consumidor muestra backlog elevado.\\nVerificar si hay más consumidores afectados\\nConsultar otros monitores relacionados o el inventario de consumidores para detectar impacto global.\\nRevisar recursos del aplicativo afectado\\nValidar la RDS asociada al aplicativo afectado para picos de CPU y memoria.\\nVerificar el cluster ECS donde corre el consumidor por picos de CPU y memoria.\\nDocumentar la alerta y hallazgos\\nRegistrar en el canal de NOC #noc-alerts-ops el consumidor afectado, valores actuales de backlog, y métricas observadas.\",\n    \"accion\": \"Tipo de acción: Escalamiento\\nEscalar inmediatamente al N2\\nEscalar al N3\\nProveer la siguiente información al escalar:\\nNombre del consumidor afectado y cluster ECS\\nValor de backlog actual y tendencia histórica\\nEstado de la RDS y métricas CPU / Memory\\nEnlaces a los dashboards de Datadog y otros monitores relevantes\\n⚠️ Nota: No reiniciar ni modificar consumidores sin autorización de N2/N3.\",\n    \"escalamiento\": \"N2\\nCloud\\nSlack / Email\\nEstado actual del backlog, métricas ECS y RDS, consumidores afectados\\nN3\\nIngenieria\\nSlack / Email\\nContexto completo de la alerta, impacto, posible causa raíz\"\n  },\n  \"RUNBOOK-008\": {\n    \"id\": \"RUNBOOK-008\",\n    \"nombre\": \"Failed Lambda Invocations\",\n    \"alert_type\": \"LAMBDA_INVOCATIONS\",\n    \"diagnostico\": \"Identificar la función Lambda afectada\\nRevisar el monitor de Datadog “Lambda Failed Invocations” para localizar cuál función presenta errores de invocación.\\nVerificar las etiquetas del monitor: service, env, region, functionname.\\nConfirmar el alcance del impacto\\nValidar si otras funciones del mismo servicio o entorno presentan fallos similares.\\nRevisar otros monitores de Lambda relacionados, como High Error Rate o Timeout Errors.\\nAnalizar métricas clave\\nEn el dashboard correspondiente, observar:\\naws.lambda.errors\\naws.lambda.invocations\\nRevisar logs de la función afectada\\nAcceder a los logs en CloudWatch Logs para identificar el tipo de error (por ejemplo, Timeout, AccessDenied, UnhandledException, ResourceLimitExceeded).\\nValidar recursos asociados\\nSi la Lambda se conecta a otros servicios (RDS, DynamoDB, S3, API Gateway), revisar el estado y métricas de dichos componentes.\\nConfirmar si hubo cambios recientes en la configuración o despliegue.\\nDocumentar la alerta y hallazgos\\nRegistrar en el canal #noc-alerts-ops la siguiente información:\\nNombre de la función Lambda afectada\\nRegión y entorno\\nTasa de errores (%) y tendencia\",\n    \"accion\": \"Tipo de acción: Escalamiento\\nEscalar inmediatamente al N2 (Cloud / Observabilidad) si:\\nEl porcentaje de errores supera el 5% sostenido por más de 10 minutos\\nHay múltiples funciones fallando en la misma región o servicio\\nEscalar a N3 (Equipo de Ingeniería) si:\\nEl error indica un fallo en el código o dependencia externa no gestionable desde N1/N2\\nProveer la siguiente información al escalar:\\nNombre y región de la Lambda afectada\\nValor actual y tendencia de aws.lambda.invocations\\nLogs o mensajes de error principales\",\n    \"escalamiento\": \"N2\\nCloud\\nSlack / Email\\nEstado actual del backlog, métricas ECS y RDS, consumidores afectados\\nN3\\nIngenieria\\nSlack / Email\\nContexto completo de la alerta, impacto, posible causa raíz\"\n  },\n  \"RUNBOOK-009\": {\n    \"id\": \"RUNBOOK-009\",\n    \"nombre\": \"Lambda Invocations Errors\",\n    \"alert_type\": \"LAMBDA_ERROR\",\n    \"diagnostico\": \"Identificar la función Lambda afectada\\nRevisar el monitor de Datadog “Lambda Errors” para localizar cuál función presenta errores.\\nVerificar las etiquetas del monitor: service, env, region, functionname.\\nConfirmar el alcance del impacto\\nValidar si otras funciones del mismo servicio o entorno presentan fallos similares.\\nRevisar otros monitores de Lambda relacionados, como High Error Rate o Timeout Errors.\\nAnalizar métricas clave\\nEn el dashboard correspondiente, observar:\\naws.lambda.errors\\nRevisar logs de la función afectada\\nAcceder a los logs en CloudWatch Logs para identificar el tipo de error (por ejemplo, Timeout, AccessDenied, UnhandledException, ResourceLimitExhceeded).\\nValidar recursos asociados\\nSi la Lambda se conecta a otros servicios (RDS, DynamoDB, S3, API Gateway), revisar el estado y métricas de dichos componentes.\\nConfirmar si hubo cambios recientes en la configuración o despliegue.\\nDocumentar la alerta y hallazgos\\nRegistrar en el canal #noc-alerts-ops la siguiente información:\\nNombre de la función Lambda afectada\\nRegión y entorno\\nTasa de errores (%) y tendencia\\nTipo de error encontrado\",\n    \"accion\": \"Tipo de acción: Escalamiento\\nEscalar inmediatamente al N2 (Cloud / Observabilidad) si:\\nEl porcentaje de errores supera el 5% sostenido por más de 10 minutos\\nHay múltiples funciones fallando en la misma región o servicio\\nEscalar a N3 (Equipo de Ingeniería) si:\\nEl error indica un fallo en el código o dependencia externa no gestionable desde N1/N2\\nProveer la siguiente información al escalar:\\nNombre y región de la Lambda afectada\\nValor actual y tendencia de aws.lambda.errors\\nLogs o mensajes de error principales\",\n    \"escalamiento\": \"N2\\nCloud\\nSlack / Email\\nEstado actual del backlog, métricas ECS y RDS, consumidores afectados\\nN3\\nIngenieria\\nSlack / Email\\nContexto completo de la alerta, impacto, posible causa raíz\"\n  },\n  \"RUNBOOK-010\": {\n    \"id\": \"RUNBOOK-010\",\n    \"nombre\": \"Low Task Count servicios ECS\",\n    \"alert_type\": \"ECS_LOW_TASK\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nRevisar en Datadog las etiquetas (service, cluster, region).\\nRevisar el estado del servicio ECS en AWS Console\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n2.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\\nSi Running tasks = Desired tasks → El servicio está saludable en cuanto a cantidad\\nSi Running tasks < Desired tasks → Hay tareas que no están arrancando (investigar en \\\"Events\\\" y \\\"Stopped Tasks\\\")\\n2.2 Pestaña \\\"Tasks\\\"\\nFiltra por Running tasks:\\nClick en cada task ID para ver detalles individuales\\nVerifica que todas las tasks tengan Last Status: RUNNING\\nOrdena por \\\"Started at\\\" para identificar tasks recién reiniciadas\\nTask definition: Versión actual del task definition (ej: my-service:42)\\nDeployment: Revisar si hay un deployment en progreso\\nStatus: PRIMARY (estable) vs ACTIVE (en despliegue)\",\n    \"accion\": \"Si las tasks se están reiniciando por error, realizar:\\nValidar logs recientes en CloudWatch.\\nSi hay errores de contenedor o networking, escalar a N2.\\nSi pendingCount > 0 por más de 10 minutos, podría haber falta de capacidad en Fargate o problemas de IAM.\\nEscalar inmediatamente a N2 (Cloud).\\nSi runningCount > desiredcount por más de 10 minutos, podría ser un consumo alto de recursos del servicio, revisar los logs del servicio si hay muchos errores.\\nEscalar inmediatamente a N2 (Cloud).\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nrunningCount < desiredCount por más de 10 minutos.\\nrunningCount > desiredCount por más de 10 minutos.\\nErrores de scheduling o capacidad insuficiente.\\nInformación a entregar:\\nNombre del servicio y cluster.\\nRegión.\\nCapturas de Datadog y ECS Console.\\nEscalar a N3 (Ingeniería) si el problema es causado por configuración del contenedor o fallo en la aplicación.\"\n  },\n  \"RUNBOOK-011\": {\n    \"id\": \"RUNBOOK-011\",\n    \"nombre\": \"Messages available on SQS DLQ\",\n    \"alert_type\": \"SQS_DLQ\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nRevisar en Datadog las etiquetas (queuename, aws-account-id, region).\\nRevisar el estado del servicio SQS en AWS Console\\nAWS Console → SQS → Queues → [Queue Name] → Monitoring\",\n    \"accion\": \"WIP\",\n    \"escalamiento\": \"Escalar a N2 (Cloud)\\nEscalar a N3 (Ingeniería)\"\n  },\n  \"RUNBOOK-012\": {\n    \"id\": \"RUNBOOK-012\",\n    \"nombre\": \"Snowflake Query Errors\",\n    \"alert_type\": \"SNOWFLAKE_ERROR\",\n    \"diagnostico\": \"Confirmar el servicio afectado\\nRevisar en Datadog las etiquetas (error.code, error.message, execution.status).\\nRevisar el estado del Query History en Snowflake Console\\nSnowflake Console → Monitoring → Query History\",\n    \"accion\": \"WIP\",\n    \"escalamiento\": \"Escalar a N2 (Cloud)\\nEscalar a N3 (Ingeniería)\"\n  },\n  \"RUNBOOK-013\": {\n    \"id\": \"RUNBOOK-013\",\n    \"nombre\": \"APM High Latency\",\n    \"alert_type\": \"APM_LATENCY\",\n    \"diagnostico\": \"1. Confirmar el servicio afectado\\nRevisar la alerta en Datadog → validar etiquetas (servicename, alb_name, region).\\nConfirmar si la alerta corresponde a High 4xx, High 5xx, o High Latency.\\nAbrir el dashboard de infraestructura correspondiente al entorno o equipo\\n2. Analizar el comportamiento del ALB en Datadog\\nEn el grupo de widgets del servicio, revisar:\\naws.applicationelb.httpcode_target_4xx_count\\naws.applicationelb.httpcode_target_5xx_count\\naws.applicationelb.target_response_time\\naws.applicationelb.request_count\\nComparar los picos con el tráfico normal de los últimos días.\\nValidar si los errores o la latencia coinciden con horarios de alto tráfico o despliegues recientes.\\n3. Verificar la capa de aplicación\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\",\n    \"accion\": \"🔸 High 4xx Errors\\nValidar si los errores provienen de peticiones inválidas o mal formadas.\\nSi los errores son de tipo 429 (Too Many Requests), revisar:\\nPolíticas de rate limiting.\\nPosible exceso de tráfico desde un origen específico.\\nSi los errores son 404 frecuentes → confirmar rutas o endpoints removidos recientemente.\\nSi no hay degradación visible, no requiere acción inmediata.\\n🔸 High 5xx Errors\\nConfirmar si los errores 5xx provienen del ALB (502, 503, 504) o de la aplicación (500):\\nSi provienen del ALB → revisar health checks y estado de las targets.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nLos errores 4xx o 5xx se mantienen por más de 15 minutos.\\nHay correlación con latencia alta o caídas de targets.\\nEl ALB muestra tráfico nulo o health checks fallando.\\nEl servicio presenta timeouts, unhealthy tasks, o impacto visible en usuarios.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nTipo de error (4xx, 5xx, latency) y valor actual vs histórico.\\nCapturas de Datadog (métricas de ALB y ECS).\\nÚltimos logs de CloudWatch del servicio y del ALB.\"\n  },\n  \"RUNBOOK-014\": {\n    \"id\": \"RUNBOOK-014\",\n    \"nombre\": \"APM High Errors\",\n    \"alert_type\": \"APM_ERRORS\",\n    \"diagnostico\": \"1. Confirmar el servicio afectado\\nRevisar la alerta en Datadog → validar etiquetas (servicename, alb_name, region).\\nConfirmar si la alerta corresponde a High 4xx, High 5xx, o High Latency.\\nAbrir el dashboard de infraestructura correspondiente al entorno o equipo\\n2. Analizar el comportamiento del ALB en Datadog\\nEn el grupo de widgets del servicio, revisar:\\naws.applicationelb.httpcode_target_4xx_count\\naws.applicationelb.httpcode_target_5xx_count\\naws.applicationelb.target_response_time\\naws.applicationelb.request_count\\nComparar los picos con el tráfico normal de los últimos días.\\nValidar si los errores o la latencia coinciden con horarios de alto tráfico o despliegues recientes.\\n3. Verificar la capa de aplicación\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\",\n    \"accion\": \"🔸 High 4xx Errors\\nValidar si los errores provienen de peticiones inválidas o mal formadas.\\nSi los errores son de tipo 429 (Too Many Requests), revisar:\\nPolíticas de rate limiting.\\nPosible exceso de tráfico desde un origen específico.\\nSi los errores son 404 frecuentes → confirmar rutas o endpoints removidos recientemente.\\nSi no hay degradación visible, no requiere acción inmediata.\\n🔸 High 5xx Errors\\nConfirmar si los errores 5xx provienen del ALB (502, 503, 504) o de la aplicación (500):\\nSi provienen del ALB → revisar health checks y estado de las targets.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nLos errores 4xx o 5xx se mantienen por más de 15 minutos.\\nHay correlación con latencia alta o caídas de targets.\\nEl ALB muestra tráfico nulo o health checks fallando.\\nEl servicio presenta timeouts, unhealthy tasks, o impacto visible en usuarios.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nTipo de error (4xx, 5xx, latency) y valor actual vs histórico.\\nCapturas de Datadog (métricas de ALB y ECS).\\nÚltimos logs de CloudWatch del servicio y del ALB.\"\n  },\n  \"RUNBOOK-015\": {\n    \"id\": \"RUNBOOK-015\",\n    \"nombre\": \"API Gateway Errors\",\n    \"alert_type\": \"APIGW_4XX\",\n    \"diagnostico\": \"1. Confirmar el servicio afectado\\nRevisar la alerta en Datadog → validar etiquetas (servicename, alb_name, region).\\nConfirmar si la alerta corresponde a High 4xx, High 5xx, o High Latency.\\nAbrir el dashboard de infraestructura correspondiente al entorno o equipo\\n2. Analizar el comportamiento del ALB en Datadog\\nEn el grupo de widgets del servicio, revisar:\\naws.applicationelb.httpcode_target_4xx_count\\naws.applicationelb.httpcode_target_5xx_count\\naws.applicationelb.target_response_time\\naws.applicationelb.request_count\\nComparar los picos con el tráfico normal de los últimos días.\\nValidar si los errores o la latencia coinciden con horarios de alto tráfico o despliegues recientes.\\n3. Verificar la capa de aplicación\\nAWS Console → ECS → Clusters → [Cluster Name] → Services → [Service Name]\\n3.1 Pestaña \\\"Task\\\"\\nService Status: Debe estar en \\\"Active\\\"\\nSi está en \\\"Draining\\\" → el servicio está siendo eliminado\\nSi está en \\\"Inactive\\\" → el servicio está detenido\\nDesired tasks: Número de tareas que deberían estar corriendo\\nRunning tasks: Número de tareas actualmente en ejecución\",\n    \"accion\": \"🔸 High 4xx Errors\\nValidar si los errores provienen de peticiones inválidas o mal formadas.\\nSi los errores son de tipo 429 (Too Many Requests), revisar:\\nPolíticas de rate limiting.\\nPosible exceso de tráfico desde un origen específico.\\nSi los errores son 404 frecuentes → confirmar rutas o endpoints removidos recientemente.\\nSi no hay degradación visible, no requiere acción inmediata.\\n🔸 High 5xx Errors\\nConfirmar si los errores 5xx provienen del ALB (502, 503, 504) o de la aplicación (500):\\nSi provienen del ALB → revisar health checks y estado de las targets.\",\n    \"escalamiento\": \"Escalar a N2 (Cloud) si:\\nLos errores 4xx o 5xx se mantienen por más de 15 minutos.\\nHay correlación con latencia alta o caídas de targets.\\nEl ALB muestra tráfico nulo o health checks fallando.\\nEl servicio presenta timeouts, unhealthy tasks, o impacto visible en usuarios.\\nInformación a entregar:\\nNombre del servicio, cluster y región.\\nTipo de error (4xx, 5xx, latency) y valor actual vs histórico.\\nCapturas de Datadog (métricas de ALB y ECS).\\nÚltimos logs de CloudWatch del servicio y del ALB.\"\n  }\n};\n\nconst ALERT_TYPE_TO_RUNBOOK = {\"ECS_CPU\": \"RUNBOOK-001\", \"ECS_MEMORY\": \"RUNBOOK-002\", \"ALB_RESPONSE_TIME\": \"RUNBOOK-006\", \"PULSAR_BACKLOG\": \"RUNBOOK-007\", \"LAMBDA_ERROR\": \"RUNBOOK-009\", \"SQS_DLQ\": \"RUNBOOK-011\", \"APIGW_4XX\": \"RUNBOOK-015\"};\n\nfunction lookupRunbook(parsed) {\n  if (parsed.runbook && RUNBOOKS[parsed.runbook]) {\n    return { id: parsed.runbook, ...RUNBOOKS[parsed.runbook], source: 'explicit' };\n  }\n  const autoId = ALERT_TYPE_TO_RUNBOOK[parsed.alert_type];\n  if (autoId && RUNBOOKS[autoId]) {\n    return { id: autoId, ...RUNBOOKS[autoId], source: 'auto_mapped' };\n  }\n  return null;\n}\n\nconst KNOWN_RUNBOOKS = {\n  'RUNBOOK-002': 'High Memory servicio ECS',\n  'RUNBOOK-007': 'Alerta de Backlog en Broker de Eventos Pulsar',\n  'RUNBOOK-011': 'Messages available on SQS DLQ',\n};\n\nfunction parseDatadogAlert(alertText) {\n  const result = {\n    alert_type: null,\n    state: null,\n    severity: null,\n    metric_value: null,\n    threshold: null,\n    resource: null,\n    resource_type: null,\n    region: null,\n    aws_account: null,\n    runbook: null,\n    runbook_name: null,\n    monitor_url: null,\n    dd_query: null,\n    extra: {},\n  };\n\n  const text = (alertText || '').trim();\n  const lower = text.toLowerCase();\n  const firstLine = text.split('\\n')[0].toLowerCase();\n  /*\n   * =========================\n   * STATE + SEVERITY\n   * =========================\n   */\n\n  if (firstLine.toLowerCase().includes('re-triggered')) {\n    result.state = 'RE-TRIGGERED';\n  } else if (firstLine.toLowerCase().includes('triggered')) {\n    result.state = 'TRIGGERED';\n  } else if (\n    firstLine.toLowerCase().includes('recovered') ||\n    firstLine.toLowerCase().includes('resolved')\n  ) {\n    result.state = 'RECOVERED';\n  } else if (firstLine.toLowerCase().includes('warn')) {\n    result.state = 'WARN';\n  }\n\n  if (result.state === 'RECOVERED') {\n    result.severity = 'OK';\n  } else if (\n    result.state === 'TRIGGERED' ||\n    result.state === 'RE-TRIGGERED'\n  ) {\n    result.severity = 'ALERT';\n  } else {\n    result.severity = 'WARN';\n  }\n\n  /*\n   * =========================\n   * GENERIC EXTRACTION\n   * =========================\n   */\n\n  const regionM = text.match(/region:\\s*([\\w-]+)/i);\n  if (regionM) {\n    result.region = regionM[1];\n  }\n\n  const accountM = text.match(\n    /(?:aws_account:|AWS Account(?:\\s*(?:ID|Number)?)?|Account:)\\s*(\\d{9,12})/i\n  );\n  if (accountM) {\n    result.aws_account = accountM[1];\n  }\n\n  const valueM = text.match(\n    /(?:Value:|Metric value:|value:)\\s*([\\d.]+)/i\n  );\n  if (valueM) {\n    result.metric_value = parseFloat(valueM[1]);\n  }\n\n  const thresholdM = text.match(\n    />\\s*(\\d+(?:\\.\\d+)?)\\s*(?:s\\b|%\\b|\\b)/\n  );\n  if (thresholdM) {\n    result.threshold = parseFloat(thresholdM[1]);\n  }\n\n  const runbookM = text.match(\n    /(RUNBOOK-\\d+)[:\\s]*(.*?)(?:\\n|@|$)/\n  );\n  if (runbookM) {\n    result.runbook = runbookM[1];\n    result.runbook_name =\n      KNOWN_RUNBOOKS[runbookM[1]] ||\n      (runbookM[2].trim() || 'Ver runbook');\n  }\n\n  const urlM = text.match(\n    /(https:\\/\\/app\\.datadoghq\\.com\\/monitors\\/\\d+[^\\s]*)/\n  );\n  if (urlM) {\n    result.monitor_url = urlM[1];\n  }\n\n  const queryM = text.match(\n    /`((?:avg|sum|max|min)\\([^`]+\\))`/s\n  );\n  if (queryM) {\n    result.dd_query = queryM[1];\n  }\n\n  /*\n   * =========================\n   * ALERT TYPE DETECTION\n   * =========================\n   */\n\n  if (\n    lower.includes('synthetics') ||\n    lower.includes('monitor-type:synthetic')\n  ) {\n    result.alert_type = 'SYNTHETICS';\n    result.resource_type = 'service';\n\n    const svcM = text.match(\n      /The service ([\\w\\-]+) is down/i\n    );\n\n    result.resource = svcM ? svcM[1] : 'unknown';\n  }\n\n  else if (\n    lower.includes('lambda') ||\n    lower.includes('functionname:')\n  ) {\n    result.alert_type = 'LAMBDA_ERROR';\n    result.resource_type = 'functionname';\n\n    const fnM = text.match(\n      /(?:Function Name:|functionname:)\\s*([\\w\\-]+)/i\n    );\n\n    result.resource = fnM\n      ? fnM[1].replace(/\\}+$/, '')\n      : null;\n  }\n\n  else if (\n    lower.includes('auth0') ||\n    lower.includes('access token')\n  ) {\n    result.alert_type = 'AUTH0_TOKEN';\n    result.resource_type = 'service';\n    result.resource = 'auth0';\n  }\n\n  else if (\n    text.includes('queuename:') ||\n    lower.includes('dead-letter') ||\n    lower.includes('dlq')\n  ) {\n    result.alert_type = 'SQS_DLQ';\n    result.resource_type = 'queuename';\n\n    const qM = text.match(\n      /(?:Queue:|queuename:)\\s*([\\w\\-]+)/i\n    );\n\n    result.resource = qM ? qM[1] : null;\n  }\n\n  else if (\n    text.includes('loadbalancer:') ||\n    text.includes('Load Balancer:')\n  ) {\n    result.alert_type = 'ALB_RESPONSE_TIME';\n    result.resource_type = 'loadbalancer';\n\n    const lbM = text.match(\n      /(?:Load Balancer:|loadbalancer:)\\s*([\\w/\\-]+)/i\n    );\n\n    result.resource = lbM ? lbM[1] : null;\n  }\n\n  else if (text.includes('database_instance:')) {\n    result.alert_type = 'RDS_CONNECTIONS';\n    result.resource_type = 'database_instance';\n\n    const dbM = text.match(\n      /database_instance:([\\w.\\-]+)/i\n    );\n\n    result.resource = dbM ? dbM[1] : null;\n  }\n\n  else if (\n    lower.includes('blocking') &&\n    (lower.includes('rds') || lower.includes('host:'))\n  ) {\n    result.alert_type = 'RDS_BLOCKING';\n    result.resource_type = 'host';\n\n    const hostM = text.match(\n      /host:\\s*([\\w.\\-]+)/i\n    );\n\n    result.resource = hostM ? hostM[1] : null;\n  }\n\n  else if (\n    (lower.includes('pulsar') ||\n    lower.includes('backlog')) &&\n    !lower.includes('high memory') &&\n    !lower.includes('memory_utilization') &&\n    !lower.includes('high cpu') &&\n    !lower.includes('ecs cluster')\n  ) {\n    result.alert_type = 'PULSAR_BACKLOG';\n    result.resource_type = 'subscription';\n\n    const subs = [\n      ...text.matchAll(/([\\w\\-]+)\\s*\\|\\s*([\\d.]+)/g),\n    ];\n\n    if (subs.length > 0) {\n      result.resource = subs[0][1];\n\n      result.extra.subscriptions = subs.map((s) => ({\n        name: s[1],\n        value: parseFloat(s[2]),\n      }));\n\n      result.metric_value = Math.max(\n        ...subs.map((s) => parseFloat(s[2]))\n      );\n    }\n  }\n\n  else if (\n    text.includes('apiname:') ||\n    lower.includes('api gateway')\n  ) {\n    result.alert_type = 'APIGW_4XX';\n    result.resource_type = 'apiname';\n\n    const apiM = text.match(\n      /(?:API Gateway:|apiname:)\\s*([\\w\\-]+)/i\n    );\n\n    result.resource = apiM ? apiM[1] : null;\n  }\n\n  /*\n   * ECS CPU\n   */\n\n  else if (\n    lower.includes('high cpu') ||\n    lower.includes('ecs.cpu')\n  ) {\n    result.alert_type = 'ECS_CPU';\n    result.resource_type = 'servicename';\n\n    const tagsM = text.match(/Tags[\\s\\S]*?\\n((?:(?!\\n\\n)[\\s\\S])*)/);\n    const tagsText = tagsM ? tagsM[1] : '';\n    const svcSource = tagsText.includes('servicename:') ? tagsText : text;\n    let svcs = [\n      ...new Set(\n        [...svcSource.matchAll(/servicename:([\\w\\-]+)/gi)].map(\n          (m) => m[1]\n        )\n      ),\n    ];\n\n    if (svcs.length === 0) {\n      const hostM = text.match(\n        /Host:\\s*([\\w\\-]+)/i\n      );\n\n      if (hostM) {\n        svcs = [hostM[1]];\n      }\n    }\n\n    result.resource =\n      svcs[0] || null;\n  }\n\n  /*\n   * ECS MEMORY\n   */\n\n  else if (\n    lower.includes('high memory') ||\n    lower.includes('memory_utilization')\n  ) {\n    result.alert_type = 'ECS_MEMORY';\n    result.resource_type = 'servicename';\n\n    const tagsM = text.match(/Tags[\\s\\S]*?\\n((?:(?!\\n\\n)[\\s\\S])*)/);\n    const tagsText = tagsM ? tagsM[1] : '';\n    const svcSource = tagsText.includes('servicename:') ? tagsText : text;\n    let svcs = [\n      ...new Set(\n        [...svcSource.matchAll(/servicename:([\\w\\-]+)/gi)].map(\n          (m) => m[1]\n        )\n      ),\n    ];\n\n    if (svcs.length === 0) {\n      const hostM = text.match(\n        /Host:\\s*([\\w\\-]+)/i\n      );\n\n      if (hostM) {\n        svcs = [hostM[1]];\n      }\n    }\n\n    result.resource =\n      svcs[0] || null;\n  }\n\n  /*\n   * ECS GENERIC\n   */\n\n  else if (\n    text.includes('servicename:') ||\n    lower.includes('ecs')\n  ) {\n    result.alert_type = 'ECS_GENERIC';\n    result.resource_type = 'servicename';\n\n    const tagsM = text.match(/Tags[\\s\\S]*?\\n((?:(?!\\n\\n)[\\s\\S])*)/);\n    const tagsText = tagsM ? tagsM[1] : '';\n    const svcSource = tagsText.includes('servicename:') ? tagsText : text;\n    let svcs = [\n      ...new Set(\n        [...svcSource.matchAll(/servicename:([\\w\\-]+)/gi)].map(\n          (m) => m[1]\n        )\n      ),\n    ];\n\n    if (svcs.length === 0) {\n      const hostM = text.match(\n        /Host:\\s*([\\w\\-]+)/i\n      );\n\n      if (hostM) {\n        svcs = [hostM[1]];\n      }\n    }\n\n    result.resource =\n      svcs[0] || null;\n  }\n\n  return result;\n}\n\nfunction buildDDQuery(parsed) {\n  if (parsed.dd_query) {\n    const cleanQuery = parsed.dd_query\n      .replace(\n        /^(?:sum|avg|max|min)\\(last_\\d+[smh]\\):/,\n        ''\n      )\n      .replace(/\\.as_count\\(\\)$/, '')\n      .replace(/\\s+by\\s+\\{[^}]+\\}/, '');\n\n    return cleanQuery;\n  }\n\n  const resource = parsed.resource;\n  const r =\n    Array.isArray(resource) && resource.length > 0\n      ? resource[0]\n      : (resource || '');\n    if (!r) return null;\n  \n\n  const queries = {\n    ECS_CPU:\n      `avg:aws.ecs.cpuutilization{servicename:${r}}`,\n\n    ECS_MEMORY:\n      `avg:aws.ecs.memory_utilization{servicename:${r}}`,\n\n    SQS_DLQ:\n      `avg:aws.sqs.approximate_number_of_messages_visible{queuename:${r}}`,\n\n    ALB_RESPONSE_TIME:\n      `avg:aws.applicationelb.target_response_time.average{loadbalancer:${r}}`,\n\n    RDS_CONNECTIONS:\n      `avg:aws.rds.database_connections{database_instance:${r}}`,\n\n    APIGW_4XX:\n      `sum:aws.apigateway.4xxerror{apiname:${r}}`,\n\n    LAMBDA_ERROR:\n      `sum:aws.lambda.errors{functionname:${r}}`,\n      ECS_STORAGE:\n              `avg:aws.ecs.storage.read_bytes{servicename:${r}}`,\n  \n      ECS_HIGH_TASK:\n              `avg:aws.ecs.service.running_count{servicename:${r}}`,\n  \n      ECS_NETWORK:\n              `avg:aws.ecs.service.running_count{servicename:${r}}`,\n  \n      ECS_GENERIC:\n              `avg:aws.ecs.cpuutilization{servicename:${r}}`,\n  \n      LAMBDA_INVOCATIONS:\n              `sum:aws.lambda.invocations{functionname:${r}}`,\n  \n      RDS_BLOCKING:\n              `avg:aws.rds.queries{database_instance:${r}}`,\n  \n      APM_LATENCY:\n              `avg:trace.web.request.duration{service:${r}}`,\n  \n      APM_ERRORS:\n              `sum:trace.web.request.errors{service:${r}}`,\n  \n      PULSAR_BACKLOG:\n              `avg:pulsar.producer.msg_rate_in{topic:${r}}`,\n  \n      SNOWFLAKE_ERROR:\n              `sum:snowflake.query.execution_count{warehouse:${r}}`,\n  \n      AUTH0_TOKEN:\n              `sum:auth0.logins_count{connection:${r}}`,\n  \n      SYNTHETICS: null,\n  \n  };\n\n  return queries[parsed.alert_type] || null;\n}\n\nfunction buildLogsQuery(parsed) {\n  const r = Array.isArray(parsed.resource)\n    ? parsed.resource[0]\n    : (parsed.resource || '');\n\n  if (!r) return null;\n\n  const queries = {\n    LAMBDA_ERROR:\n      `service:${r} status:error`,\n\n    ECS_CPU:\n      `servicename:${r} status:error`,\n\n    ECS_MEMORY:\n      `servicename:${r} status:error`,\n\n    APIGW_4XX:\n      `apiname:${r} @http.status_code:[400 TO 499]`,\n\n    AUTH0_TOKEN:\n      `service:auth0 status:error`,\n\n    RDS_CONNECTIONS:\n      `host:${r} status:(error OR warn)`,\n\n    RDS_BLOCKING:\n      `host:${r} (blocking OR deadlock)`,\n\n    SQS_DLQ:\n      `queuename:${r}`,\n\n    ALB_RESPONSE_TIME:\n      `loadbalancer:${r} @http.status_code:[500 TO 599]`,\n  };\n\n  return (\n    queries[parsed.alert_type] ||\n    `${parsed.resource_type || ''}:${r}`.replace(/^:/, '')\n  );\n}\n\nconst items = $input.all();\n\n  // Dedup cross-ejecución: evitar responder a la misma alerta varias veces\n  const staticData = $getWorkflowStaticData('global');\n  if (!staticData.respondedTs) staticData.respondedTs = {};\n  // Limpiar entradas de más de 10 minutos\n  const nowClean = Date.now();\n  Object.keys(staticData.respondedTs).forEach(ts => {\n    if (nowClean - staticData.respondedTs[ts] > 10 * 60 * 1000) delete staticData.respondedTs[ts];\n  });\n\n// Deduplicar por ts Y por alert_type+recurso para evitar respuestas dobles\nconst seenTs = new Set();\nconst seenAlertKey = new Set();\nconst seenText = new Set();\nconst uniqueItems = items.filter(item => {\n  const ts = item.json.ts || item.json.timestamp;\n  // Primero dedup por ts exacto\n  if (ts && seenTs.has(ts) || staticData.respondedTs[ts]) return false;\n  if (ts) seenTs.add(ts);\n\n  // Dedup por texto identico del mensaje Slack\n  const msgText = (item.json.text || item.json.mensaje || '').substring(0, 200);\n  if (msgText && seenText.has(msgText)) return false;\n  if (msgText) seenText.add(msgText);\n\n  // Segundo dedup por alert_type+recurso (para alertas iguales enviadas 2 veces)\n  const parsed = parseDatadogAlert(item.json.mensaje || item.json.message || '');\n  const alertKey = (parsed.state || 'unknown') + '|' + (parsed.alert_type || 'unknown') + '|' + (Array.isArray(parsed.resource) ? parsed.resource[0] : parsed.resource || 'unknown');\n  if (seenAlertKey.has(alertKey)) return false;\n  seenAlertKey.add(alertKey);\n\n  return true;\n});\n\nreturn uniqueItems.map((item) => {\n  const rawTitle = (item.json.attachments && item.json.attachments[0]) ? (item.json.attachments[0].title || '') + '\\n' + (item.json.attachments[0].pretext || '') + '\\n' : '';\n  const alertText = rawTitle + (item.json.mensaje || '');\n  const parsed = parseDatadogAlert(alertText);\n\n  // Clave compuesta: estado|tipo|recurso. Permite responder a WARN y luego al TRIGGERED del mismo monitor,\n  // pero NO responder dos veces al mismo estado de la misma alerta.\n  const resourceKey = Array.isArray(parsed.resource) ? (parsed.resource[0] || '') : (parsed.resource || '');\n  const respondedKey = (parsed.state || '') + '|' + (parsed.alert_type || '') + '|' + resourceKey;\n  const alreadyResponded = respondedKey && staticData.respondedTs[respondedKey];\n\n  const shouldRespond =\n    (parsed.state === 'WARN' || parsed.state === 'TRIGGERED' || parsed.state === 'RE-TRIGGERED') &&\n    parsed.alert_type !== null &&\n    !item.json.subtype &&\n    !alreadyResponded;\n\n  // Marcar como respondido usando la clave compuesta para evitar duplicados del mismo estado\n  if (shouldRespond) {\n    const alertTs = item.json.ts || item.json.timestamp || '';\n    if (alertTs) staticData.respondedTs[alertTs] = Date.now();\n    if (respondedKey) staticData.respondedTs[respondedKey] = Date.now();\n  }\n\n  const ddQuery = buildDDQuery(parsed);\n  const runbook_detail = lookupRunbook(parsed);\n  const logsQuery = buildLogsQuery(parsed);\n\n  const nowMs = Date.now();\n  const thirtyMinAgoMs =\n    nowMs - 30 * 60 * 1000;\n  const oneHourAgoMs =\n    nowMs - 60 * 60 * 1000;\n\n  return {\n    json: {\n      ...item.json,\n      parsed,\n      runbook_detail,\n      should_respond: shouldRespond,\n      dd_query: ddQuery,\n      logs_query: logsQuery,\n      time_from_sec: Math.floor(\n        thirtyMinAgoMs / 1000\n      ),\n      time_to_sec: Math.floor(\n        nowMs / 1000\n      ),\n      time_from_iso: new Date(\n        thirtyMinAgoMs\n      ).toISOString(),\n      time_to_iso: new Date(\n        nowMs\n      ).toISOString(),\n      time_from_ms_1h: oneHourAgoMs,\n      time_to_ms: nowMs,\n    },\n  };\n});"
+      },
+      "id": "e71cb096-c5b3-48b6-b3be-b0e6919369ba",
+      "name": "Parsear Alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6736,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.should_respond }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3ae10b0-9d2f-4f9e-93b7-6a4bdcbf54d7",
+      "name": "Debe responder",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        6928,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.datadoghq.com/api/v1/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from",
+              "value": "={{ $json.time_from_sec }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.time_to_sec }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.dd_query }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "DD-API-KEY",
+              "value": "YOUR_DD_API_KEY"
+            },
+            {
+              "name": "DD-APPLICATION-KEY",
+              "value": "YOUR_DD_APP_KEY"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "b07886dc-5825-40e8-bc8a-14ebd9399b11",
+      "name": "DD: Metrics (30min)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7152,
+        4912
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.datadoghq.com/api/v2/logs/events/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "DD-API-KEY",
+              "value": "YOUR_DD_API_KEY"
+            },
+            {
+              "name": "DD-APPLICATION-KEY",
+              "value": "YOUR_DD_APP_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"filter\": {\n    \"query\": \"{{ $json.logs_query }}\",\n    \"from\": \"{{ $now.minus(15, 'minutes').toISO() }}\",\n    \"to\": \"{{ $now.toISO() }}\"\n  },\n  \"sort\": \"-timestamp\",\n  \"page\": { \"limit\": 10 }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "f4e209c2-a869-435d-9329-6129643514f0",
+      "name": "DD: Logs (15min)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7152,
+        5104
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.datadoghq.com/api/v1/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "start",
+              "value": "={{ Math.floor($json.time_to_sec - 3600) }}"
+            },
+            {
+              "name": "end",
+              "value": "={{ $json.time_to_sec }}"
+            },
+            {
+              "name": "tags",
+              "value": "={{ $json.parsed.resource_type ? ($json.parsed.resource_type + ':' + (Array.isArray($json.parsed.resource) ? $json.parsed.resource[0] : $json.parsed.resource)) : '' }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "DD-API-KEY",
+              "value": "YOUR_DD_API_KEY"
+            },
+            {
+              "name": "DD-APPLICATION-KEY",
+              "value": "YOUR_DD_APP_KEY"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "d8af7248-7d24-4906-8b81-5a4b18145c01",
+      "name": "DD: Events (1h)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7152,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "channel",
+        "operation": "history",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "limit": 100,
+        "filters": {
+          "oldest": "={{ $now.minus(1, 'hour').toISO() }}"
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        7152,
+        5456
+      ],
+      "id": "302cb2e7-7ed5-4fe4-9a77-dd74c2337afe",
+      "name": "Slack: Correlación (1h)",
+      "webhookId": "correlation-webhook-uuid",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://health.us-east-1.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "AWSHealth_20160804.DescribeEvents"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            },
+            {
+              "name": "X-Aws-Region-Filter",
+              "value": "={{ $json.parsed.region || 'us-east-1' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"filter\": {\n    \"regions\": [\"{{ $json.parsed.region || 'us-east-1' }}\"],\n    \"eventStatusCodes\": [\"open\", \"upcoming\"]\n  },\n  \"maxResults\": 5\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "id": "52fb8f33-b9d4-4504-b396-b355c63ca3e6",
+      "name": "AWS Health (opcional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7152,
+        5632
+      ],
+      "credentials": {
+        "aws": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "AWS (IAM) account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "dd_metrics_response",
+              "value": "={{\n$if(\n  $(\"DD: Metrics (30min)\").isExecuted,\n  $('DD: Metrics (30min)').item.json,  {}\n)\n}}",
+              "type": "object"
+            },
+            {
+              "id": "m2",
+              "name": "dd_logs_response",
+              "value": "={{\n$if(\n  $(\"DD: Logs (15min)\").isExecuted,\n  $('DD: Logs (15min)').item.json,  {}\n)\n}}",
+              "type": "object"
+            },
+            {
+              "id": "m3",
+              "name": "dd_events_response",
+              "value": "={{\n$if(\n  $(\"DD: Events (1h)\").isExecuted,\n  $('DD: Events (1h)').item.json,  {}\n)\n}}",
+              "type": "object"
+            },
+            {
+              "id": "m4",
+              "name": "slack_history_response",
+              "value": "={{\n$if(\n  $(\"Slack: Correlación (1h)\").isExecuted,\n  $(\"Slack: Correlación (1h)\").all().map(i => i.json),\n  []\n)\n}}",
+              "type": "array"
+            },
+            {
+              "id": "m5",
+              "name": "aws_health_summary",
+              "value": "={{\n$if(\n  $(\"AWS Health (opcional)\").isExecuted,\n  {\n    available: $('AWS Health (opcional)').item.json.events ? true : false,\n    incidents: $('AWS Health (opcional)').item.json.events\n      ? $('AWS Health (opcional)').item.json.events.length\n      : 0\n  },\n  {\n    available: false,\n    incidents: 0\n  }\n)\n}}",
+              "type": "object"
+            },
+            {
+              "id": "m6",
+              "name": "parsed",
+              "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.parsed || {} }}",
+              "type": "object"
+            },
+            {
+              "id": "m7",
+              "name": "mensaje",
+              "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.mensaje || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "m8",
+              "name": "timestamp",
+              "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.timestamp || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "m9",
+              "name": "canal",
+              "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.canal || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "m10",
+              "name": "runbook_detail",
+              "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.runbook_detail }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3084d7f8-593f-4fae-9f0a-0e130d910d15",
+      "name": "Consolidar enriquecimiento",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7616,
+        5280
+      ],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfunction summarizeMetrics(seriesData) {\n  if (!seriesData || !seriesData.series || seriesData.series.length === 0) {\n    return { available: false };\n  }\n  const points = seriesData.series[0].pointlist || [];\n  const values = points.map(p => p[1]).filter(v => v !== null && !isNaN(v));\n  if (values.length === 0) return { available: false };\n  const avg = values.reduce((a, b) => a + b, 0) / values.length;\n  const max = Math.max(...values);\n  const min = Math.min(...values);\n  const firstHalf = values.slice(0, Math.floor(values.length / 2));\n  const secondHalf = values.slice(Math.floor(values.length / 2));\n  const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / (firstHalf.length || 1);\n  const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / (secondHalf.length || 1);\n  let trend = 'estable';\n  if (avgSecond > avgFirst * 1.2) trend = 'subiendo ↗';\n  else if (avgSecond < avgFirst * 0.8) trend = 'bajando ↘';\n  return {\n    available: true,\n    avg: parseFloat(avg.toFixed(2)),\n    max: parseFloat(max.toFixed(2)),\n    min: parseFloat(min.toFixed(2)),\n    trend,\n    points_count: values.length,\n  };\n}\n\nfunction summarizeLogs(logsData) {\n  if (!logsData || !logsData.data || logsData.data.length === 0) {\n    return { available: false, count: 0, samples: [] };\n  }\n  const logs = logsData.data.slice(0, 5);\n  const samples = logs.map(l => {\n    const attrs = l.attributes || {};\n    const msg = (attrs.message || '').substring(0, 200);\n    const ts = attrs.timestamp || '';\n    const status = attrs.status || '';\n    const service = attrs.service || '';\n    return { timestamp: ts, status, service, message: msg };\n  });\n  return {\n    available: true,\n    count: logsData.data.length,\n    samples,\n  };\n}\n\nfunction summarizeEvents(eventsData) {\n  if (!eventsData || !eventsData.events || eventsData.events.length === 0) {\n    return { available: false, deploys: [], changes: [] };\n  }\n  const deploys = [];\n  const changes = [];\n  for (const ev of eventsData.events.slice(0, 10)) {\n    const title = (ev.title || '').toLowerCase();\n    const text = (ev.text || '').substring(0, 200);\n    const item = {\n      title: ev.title || '',\n      text,\n      date: ev.date_happened ? new Date(ev.date_happened * 1000).toISOString() : null,\n      tags: ev.tags || [],\n    };\n    if (title.includes('deploy') || title.includes('release')) deploys.push(item);\n    else changes.push(item);\n  }\n  return {\n    available: true,\n    deploys: deploys.slice(0, 3),\n    changes: changes.slice(0, 3),\n  };\n}\n\nfunction summarizeCorrelation(slackHistoryData, parsed) {\n  if (!slackHistoryData || !Array.isArray(slackHistoryData) || slackHistoryData.length === 0) {\n    return { available: false, similar_count: 0 };\n  }\n  const resource = parsed.resource;\n  const r = Array.isArray(resource) ? resource[0] : (resource || '');\n  const alertType = (parsed.alert_type || '').toLowerCase();\n  let similarCount = 0;\n  const samples = [];\n  for (const msg of slackHistoryData) {\n    const txt = (msg.text || msg.json?.text || '').toLowerCase();\n    if (!txt) continue;\n    const matchesResource = r && txt.includes(r.toLowerCase());\n    const matchesType = alertType && (\n      txt.includes(alertType.replace(/_/g, ' ')) ||\n      (alertType === 'lambda_error' && txt.includes('lambda')) ||\n      (alertType === 'ecs_cpu' && txt.includes('cpu')) ||\n      (alertType === 'ecs_memory' && txt.includes('memory'))\n    );\n    if (matchesResource || matchesType) {\n      similarCount++;\n      if (samples.length < 3) {\n        samples.push((msg.text || msg.json?.text || '').substring(0, 100));\n      }\n    }\n  }\n  return {\n    available: true,\n    similar_count: similarCount,\n    samples,\n  };\n}\n\nconst items = $input.all();\nreturn items.map(item => {\n  const j = item.json;\n  const parsed = j.parsed || {};\n  const metricsSummary = summarizeMetrics(j.dd_metrics_response);\n  const logsSummary = summarizeLogs(j.dd_logs_response);\n  const eventsSummary = summarizeEvents(j.dd_events_response);\n  const correlationSummary = summarizeCorrelation(j.slack_history_response, parsed);\n  const awsHealth = j.aws_health_summary || { available: false, incidents: 0 };\n\n  const runbookDetail = j.runbook_detail || null;\n  const enrichedContext = {\n    alert: parsed,\n    metrics: metricsSummary,\n    logs: logsSummary,\n    events: eventsSummary,\n    correlation: correlationSummary,\n    aws_health: awsHealth,\n    runbook: runbookDetail,\n  };\n\n  return {\n    json: {\n      ...j,\n      enriched_context: enrichedContext,\n      runbook_detail: runbookDetail,\n      claude_prompt: buildClaudePrompt(enrichedContext),\n    },\n  };\n});\n\nfunction buildClaudePrompt(ctx) {\n  const a = ctx.alert;\n  const m = ctx.metrics;\n  const l = ctx.logs;\n  const e = ctx.events;\n  const c = ctx.correlation;\n  const h = ctx.aws_health;\n\n  let prompt = `Eres un ingeniero N1 de NOC experto. Analiza esta alerta de producción y da un diagnóstico breve, accionable y en español. Responde SOLO con el análisis (2-4 oraciones), sin saludos ni despedidas.\n\nALERTA:\n- Tipo: ${a.alert_type}\n- Estado: ${a.state}\n- Recurso: ${Array.isArray(a.resource) ? a.resource.join(', ') : a.resource}\n- Región: ${a.region || 'N/A'}\n- Valor: ${a.metric_value} (umbral: ${a.threshold})\n`;\n\n  if (m.available) {\n    prompt += `\\nMÉTRICA ÚLTIMOS 30 MIN:\n- Promedio: ${m.avg}\n- Máximo: ${m.max}\n- Tendencia: ${m.trend}\n`;\n  } else {\n        prompt += '\\nMETRICA: No disponible para este tipo de alerta (no hagas suposiciones sobre valores numericos).';\n  }\n\n  if (l.available && l.samples.length > 0) {\n    prompt += `\\nLOGS RECIENTES (${l.count} en últimos 15min):`;\n    l.samples.slice(0, 3).forEach(log => {\n      prompt += `\\n- [${log.status}] ${log.message.substring(0, 150)}`;\n    });\n  }\n\n  if (e.available && e.deploys.length > 0) {\n    prompt += `\\n\\nDEPLOYS/CAMBIOS RECIENTES:`;\n    e.deploys.forEach(d => {\n      prompt += `\\n- ${d.title}`;\n    });\n  }\n\n  if (c.available && c.similar_count > 0) {\n    prompt += `\\n\\nCORRELACIÓN: ${c.similar_count} alertas similares en la última hora.`;\n  }\n\n  if (h.available && h.incidents > 0) {\n    prompt += `\\n\\nAWS HEALTH: ${h.incidents} incidente(s) activo(s) en la región.`;\n  }\n\n  if (ctx.runbook) {\n    const rb = ctx.runbook;\n    prompt += `\\n\\nRUNBOOK APLICABLE: ${rb.id} - ${rb.nombre}`;\n    if (rb.diagnostico) {\n      prompt += `\\nPASOS DE DIAGNÓSTICO N1 (oficiales):\\n${rb.diagnostico.substring(0, 800)}`;\n    }\n    if (rb.accion) {\n      prompt += `\\n\\nACCIÓN CORRECTIVA N1 (oficial):\\n${rb.accion.substring(0, 500)}`;\n    }\n    if (rb.escalamiento) {\n      prompt += `\\n\\nCONDICIONES DE ESCALAMIENTO (oficial):\\n${rb.escalamiento.substring(0, 400)}`;\n    }\n  }\n\n  prompt += `\\n\\nResponde en 3-5 oraciones siguiendo el runbook oficial cuando exista:\n1. Causa raíz probable (correlacionando logs, deploys, métricas).\n2. Pasos concretos del runbook que el ingeniero N1 debe ejecutar AHORA (cita el runbook).\n3. Si debe escalar a N2 según las condiciones oficiales del runbook.\n4. (Opcional) Patrón interesante que detectaste en los datos.\nSé conciso, técnico y accionable. Usa términos en español.`;\n  return prompt;\n}\n"
+      },
+      "id": "b20e1276-706c-4d00-92a4-2dd13245f87c",
+      "name": "Procesar Enriquecimiento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7904,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "claude_response",
+              "value": "={{ $json }}",
+              "type": "object"
+            },
+            {
+              "id": "c2",
+              "name": "enriched_context",
+              "value": "={{ $('Procesar Enriquecimiento').item.json.enriched_context }}",
+              "type": "object"
+            },
+            {
+              "id": "c3",
+              "name": "timestamp",
+              "value": "={{ $('Procesar Enriquecimiento').item.json.timestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "c4",
+              "name": "canal",
+              "value": "={{ $('Procesar Enriquecimiento').item.json.canal }}",
+              "type": "string"
+            },
+            {
+              "id": "c5",
+              "name": "runbook_detail",
+              "value": "={{ $('Procesar Enriquecimiento').item.json.runbook_detail }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3d8f9da9-8e43-4683-861b-2597b5ac6c0a",
+      "name": "Adjuntar respuesta IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        8320,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const j = item.json;\n  const ctx = j.enriched_context || {};\n  const a = ctx.alert || {};\n  const m = ctx.metrics || {};\n  const l = ctx.logs || {};\n  const e = ctx.events || {};\n  const c = ctx.correlation || {};\n  const h = ctx.aws_health || {};\n  const rb = ctx.runbook;\n\n  // =========================\n  // 🧠 IA\n  // =========================\n  let aiAnalysis = '_(Sin análisis IA)_';\n  const resp = j.claude_response || j.gemini_response || j.ai_response;\n\n  if (resp) {\n    if (resp.candidates?.[0]?.content?.parts) {\n      aiAnalysis = resp.candidates[0].content.parts.map(p => p.text || '').join('').trim();\n    } else if (resp.choices?.[0]?.message?.content) {\n      aiAnalysis = resp.choices[0].message.content.trim();\n    } else if (resp.content?.[0]?.text) {\n      aiAnalysis = resp.content[0].text.trim();\n    } else if (typeof resp === 'string') {\n      aiAnalysis = resp.trim();\n    }\n  }\n\n  // =========================\n  // 🎯 STATUS\n  // =========================\n  const isCritical = a.state === 'TRIGGERED' || a.state === 'RE-TRIGGERED';\n  const isRecovered = a.state === 'RECOVERED';\n\n  const icon = isRecovered ? '🟢' : isCritical ? '🔴' : '🟡';\n\n  const severity =\n    a.severity === 'ALERT' ? 'CRÍTICO' :\n    a.severity === 'WARN' ? 'ADVERTENCIA' :\n    'OK';\n\n  const typeLabel = (a.alert_type || 'UNKNOWN').replace(/_/g, ' ');\n  const resource = Array.isArray(a.resource) ? a.resource.join(', ') : (a.resource || 'N/A');\n\n  // =========================\n  // 📊 METRICS\n  // =========================\n  const metricsBlock = m.available\n    ? `\\n*📊 Métricas (30 min)* → avg: \\`${m.avg}\\` | max: \\`${m.max}\\` | min: \\`${m.min}\\` | trend: \\`${m.trend}\\``\n    : '';\n\n  // =========================\n  // 📜 LOGS (más limpio)\n  // =========================\n  let logsBlock = '';\n  if (l.available && l.samples?.length) {\n    const samples = l.samples.slice(0, 3);\n\n    logsBlock = `\\n*📜 Logs relevantes*`;\n\n    logsBlock += samples.map(log => {\n      const t = log.timestamp?.substring(11, 19) || '??:??:??';\n      const msg = (log.message || '').replace(/\\n/g, ' ').substring(0, 100);\n      return `\\n  • \\`${t}\\` ${msg}`;\n    }).join('');\n  }\n\n  // =========================\n  // 🚀 EVENTS\n  // =========================\n  let eventsBlock = '';\n  if (e.available && (e.deploys?.length || e.changes?.length)) {\n    eventsBlock = `\\n*🚀 Cambios recientes*`;\n\n    (e.deploys || []).slice(0, 2).forEach(d => {\n      eventsBlock += `\\n  • Deploy: ${(d.title || '').substring(0, 90)}`;\n    });\n\n    (e.changes || []).slice(0, 2).forEach(ch => {\n      eventsBlock += `\\n  • Change: ${(ch.title || '').substring(0, 90)}`;\n    });\n  }\n\n  // =========================\n  // 🔁 CORRELATION\n  // =========================\n  const correlationBlock = (c.available && c.similar_count > 0)\n    ? `\\n*🔁 Correlación:* ${c.similar_count} alerta(s) similar(es) en 1h ${c.similar_count >= 3 ? '⚠️ patrón' : ''}`\n    : '';\n\n  // =========================\n  // ☁️ AWS HEALTH\n  // =========================\n  const healthBlock = h.available\n    ? (h.incidents > 0\n      ? `\\n*☁️ AWS Health:* 🔴 ${h.incidents} incidente(s) activo(s)`\n      : `\\n*☁️ AWS Health:* 🟢 Sin incidentes`)\n    : '';\n\n  // =========================\n  // 📖 RUNBOOK\n  // =========================\n  let runbookBlock = '';\n\n  if (rb) {\n    runbookBlock = `\\n*📖 Runbook:* ${rb.id} — ${rb.nombre || ''}`;\n\n    if (rb.diagnostico) {\n      const steps = rb.diagnostico\n        .split('\\n')\n        .map(s => s.trim())\n        .filter(Boolean)\n        .slice(0, 4);\n\n      if (steps.length) {\n        runbookBlock += `\\n*Checklist N1:*`;\n        steps.forEach((s, i) => {\n          runbookBlock += `\\n  ☐ ${i + 1}. ${s.substring(0, 100)}`;\n        });\n      }\n    }\n  } else {\n    runbookBlock = '\\n*📖 Runbook:* _Sin runbook disponible para este tipo de alerta._';\n  }\n\n  const linkBlock = a.monitor_url\n    ? `\\n🔗 <${a.monitor_url}|Abrir monitor>`\n    : '';\n\n  // =========================\n  // 🧠 FINAL MESSAGE (estructura tipo NOC)\n  // =========================\n  const message =\n`${icon} *INCIDENTE AUTOMATIZADO N1*\n━━━━━━━━━━━━━━━━━━━━━━\n*Severidad:* ${severity}   *Estado:* ${a.state}\n*Tipo:* ${typeLabel}\n*Recurso:* ${resource}\n*Región:* ${a.region || 'N/A'}\n*Valor:* ${a.metric_value || 'N/A'}  |  Umbral: ${a.threshold || 'N/A'}\n${metricsBlock}\n${logsBlock}\n${eventsBlock}\n${correlationBlock}\n${healthBlock}\n\n*🧠 Análisis IA*\n${aiAnalysis}\n\n${runbookBlock}\n${linkBlock}\n\n_FYI:_ <@U09DURT23S6> <@U06BU9YU9J6>`;\n  return {\n    json: {\n      ...j,\n      slack_message: message,\n    },\n  };\n});"
+      },
+      "id": "b8b7e7f7-4466-4433-8078-fa568ff956bf",
+      "name": "Construir Mensaje Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8512,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "={{ $json.slack_message }}",
+        "otherOptions": {
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $json.timestamp }}"
+            }
+          },
+          "mrkdwn": true
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        8688,
+        5280
+      ],
+      "id": "6276d130-9255-4641-98d3-7c81f47152f6",
+      "name": "Responder en hilo",
+      "webhookId": "reply-thread-webhook-uuid",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 5,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        7424,
+        5232
+      ],
+      "id": "9669f497-32f2-4b20-8637-ff87872b74df",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"system\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"Eres un ingeniero N1 de NOC experto en AWS y Datadog. Respondes en español, de forma breve y accionable.\",\n      \"cache_control\": { \"type\": \"ephemeral\" }\n    }\n  ],\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.claude_prompt) }}\n    }\n  ]\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d33aacd6-5ae7-4a98-94f8-fdd562569aeb",
+      "name": "Claude: Analisis IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8128,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "alert_type": "={{ $('Procesar Enriquecimiento').item.json.enriched_context.alert.alert_type }}",
+            "state": "={{ $('Procesar Enriquecimiento').item.json.enriched_context.alert.state }}",
+            "severity": "={{ $('Procesar Enriquecimiento').item.json.enriched_context.alert.severity }}",
+            "resource": "={{ Array.isArray($('Procesar Enriquecimiento').item.json.enriched_context.alert.resource) ? $('Procesar Enriquecimiento').item.json.enriched_context.alert.resource.join(',') : ($('Procesar Enriquecimiento').item.json.enriched_context.alert.resource || 'unknown') }}",
+            "region": "={{ $('Procesar Enriquecimiento').item.json.enriched_context.alert.region || 'N/A' }}",
+            "runbook_id": "={{ $('Procesar Enriquecimiento').item.json.runbook_detail?.id || 'NONE' }}",
+            "runbook_source": "={{ $('Procesar Enriquecimiento').item.json.runbook_detail?.source || 'none' }}",
+            "response_time_ms": "={{ Date.now() - parseInt($('Parsear Alerta').item.json.timestamp.split('.')[0]) * 1000 }}",
+            "ai_provider": "={{ $('Adjuntar respuesta IA').item.json.claude_response?.candidates ? 'gemini' : ($('Adjuntar respuesta IA').item.json.claude_response?.choices ? 'groq' : ($('Adjuntar respuesta IA').item.json.claude_response?.content ? 'claude' : 'none')) }}",
+            "ai_success": "={{ !!($('Adjuntar respuesta IA').item.json.claude_response?.candidates || $('Adjuntar respuesta IA').item.json.claude_response?.choices || $('Adjuntar respuesta IA').item.json.claude_response?.content) }}",
+            "tokens_used": "={{ ($('Adjuntar respuesta IA').item.json.claude_response?.usage?.input_tokens || 0) + ($('Adjuntar respuesta IA').item.json.claude_response?.usage?.output_tokens || 0) || $('Adjuntar respuesta IA').item.json.claude_response?.usageMetadata?.totalTokenCount || 0 }}",
+            "thread_ts": "={{ $('Parsear Alerta').item.json.timestamp }}",
+            "channel": "={{ $('Parsear Alerta').item.json.canal }}",
+            "message_preview": "={{ ($('Parsear Alerta').item.json.mensaje || '').substring(0, 200).replace(/\\n/g, ' ') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alert_type",
+              "displayName": "alert_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "severity",
+              "displayName": "severity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resource",
+              "displayName": "resource",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "region",
+              "displayName": "region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runbook_id",
+              "displayName": "runbook_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runbook_source",
+              "displayName": "runbook_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_time_ms",
+              "displayName": "response_time_ms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_provider",
+              "displayName": "ai_provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_success",
+              "displayName": "ai_success",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tokens_used",
+              "displayName": "tokens_used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_ts",
+              "displayName": "thread_ts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_preview",
+              "displayName": "message_preview",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Registrar en Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8880,
+        5280
+      ],
+      "id": "f2f19e26-97e8-4e67-b665-70d86377c6e8",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account 3"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2026-05-19T18:16:14.002-04:00",
+          "Readable date": "May 19th 2026, 6:16:14 pm",
+          "Readable time": "6:16:14 pm",
+          "Day of week": "Tuesday",
+          "Year": "2026",
+          "Month": "May",
+          "Day of month": "19",
+          "Hour": "18",
+          "Minute": "16",
+          "Second": "14",
+          "Timezone": "America/New_York (UTC-04:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get the history of a channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Formatear Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get the history of a channel": {
+      "main": [
+        [
+          {
+            "node": "Formatear Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Mensaje": {
+      "main": [
+        [
+          {
+            "node": "Tiene contenido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tiene contenido": {
+      "main": [
+        [
+          {
+            "node": "Parsear Alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Alerta": {
+      "main": [
+        [
+          {
+            "node": "Debe responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debe responder": {
+      "main": [
+        [
+          {
+            "node": "DD: Metrics (30min)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DD: Logs (15min)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DD: Events (1h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Correlación (1h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AWS Health (opcional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD: Metrics (30min)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DD: Logs (15min)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "DD: Events (1h)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Slack: Correlación (1h)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "AWS Health (opcional)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Consolidar enriquecimiento": {
+      "main": [
+        [
+          {
+            "node": "Procesar Enriquecimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Enriquecimiento": {
+      "main": [
+        [
+          {
+            "node": "Claude: Analisis IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adjuntar respuesta IA": {
+      "main": [
+        [
+          {
+            "node": "Construir Mensaje Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir Mensaje Final": {
+      "main": [
+        [
+          {
+            "node": "Responder en hilo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Consolidar enriquecimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Analisis IA": {
+      "main": [
+        [
+          {
+            "node": "Adjuntar respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder en hilo": {
+      "main": [
+        [
+          {
+            "node": "Registrar en Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar en Sheets": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0486a7cb-edf1-44b6-aace-5e90c31862ff",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "tI2IImmY3OlXHH9N",
+  "tags": []
+}
