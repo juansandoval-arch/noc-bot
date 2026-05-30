@@ -502,6 +502,24 @@
               "name": "runbook_detail",
               "value": "={{ $('Parsear Alerta').all()[$itemIndex].json.runbook_detail }}",
               "type": "object"
+            },
+            {
+              "id": "m11",
+              "name": "priority",
+              "value": "={{ $('Clasificar Prioridad').all()[$itemIndex].json.priority || 'P3' }}",
+              "type": "string"
+            },
+            {
+              "id": "m12",
+              "name": "noise_score",
+              "value": "={{ $('Clasificar Prioridad').all()[$itemIndex].json.noise_score ?? 50 }}",
+              "type": "number"
+            },
+            {
+              "id": "m13",
+              "name": "classification_reason",
+              "value": "={{ $('Clasificar Prioridad').all()[$itemIndex].json.classification_reason || '' }}",
+              "type": "string"
             }
           ]
         },
@@ -579,7 +597,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const j = item.json;\n  const ctx = j.enriched_context || {};\n  const a = ctx.alert || {};\n  const m = ctx.metrics || {};\n  const l = ctx.logs || {};\n  const e = ctx.events || {};\n  const c = ctx.correlation || {};\n  const h = ctx.aws_health || {};\n  const rb = ctx.runbook;\n\n  // =========================\n  // 🧠 IA\n  // =========================\n  let aiAnalysis = '_(Sin análisis IA)_';\n  const resp = j.claude_response || j.gemini_response || j.ai_response;\n\n  if (resp) {\n    if (resp.candidates?.[0]?.content?.parts) {\n      aiAnalysis = resp.candidates[0].content.parts.map(p => p.text || '').join('').trim();\n    } else if (resp.choices?.[0]?.message?.content) {\n      aiAnalysis = resp.choices[0].message.content.trim();\n    } else if (resp.content?.[0]?.text) {\n      aiAnalysis = resp.content[0].text.trim();\n    } else if (typeof resp === 'string') {\n      aiAnalysis = resp.trim();\n    }\n  }\n\n  // =========================\n  // 🎯 STATUS\n  // =========================\n  const isCritical = a.state === 'TRIGGERED' || a.state === 'RE-TRIGGERED';\n  const isRecovered = a.state === 'RECOVERED';\n\n  const icon = isRecovered ? '🟢' : isCritical ? '🔴' : '🟡';\n\n  const severity =\n    a.severity === 'ALERT' ? 'CRÍTICO' :\n    a.severity === 'WARN' ? 'ADVERTENCIA' :\n    'OK';\n\n  const typeLabel = (a.alert_type || 'UNKNOWN').replace(/_/g, ' ');\n  const resource = Array.isArray(a.resource) ? a.resource.join(', ') : (a.resource || 'N/A');\n\n  // =========================\n  // 📊 METRICS\n  // =========================\n  const metricsBlock = m.available\n    ? `\\n*📊 Métricas (30 min)* → avg: \\`${m.avg}\\` | max: \\`${m.max}\\` | min: \\`${m.min}\\` | trend: \\`${m.trend}\\``\n    : '';\n\n  // =========================\n  // 📜 LOGS (más limpio)\n  // =========================\n  let logsBlock = '';\n  if (l.available && l.samples?.length) {\n    const samples = l.samples.slice(0, 3);\n\n    logsBlock = `\\n*📜 Logs relevantes*`;\n\n    logsBlock += samples.map(log => {\n      const t = log.timestamp?.substring(11, 19) || '??:??:??';\n      const msg = (log.message || '').replace(/\\n/g, ' ').substring(0, 100);\n      return `\\n  • \\`${t}\\` ${msg}`;\n    }).join('');\n  }\n\n  // =========================\n  // 🚀 EVENTS\n  // =========================\n  let eventsBlock = '';\n  if (e.available && (e.deploys?.length || e.changes?.length)) {\n    eventsBlock = `\\n*🚀 Cambios recientes*`;\n\n    (e.deploys || []).slice(0, 2).forEach(d => {\n      eventsBlock += `\\n  • Deploy: ${(d.title || '').substring(0, 90)}`;\n    });\n\n    (e.changes || []).slice(0, 2).forEach(ch => {\n      eventsBlock += `\\n  • Change: ${(ch.title || '').substring(0, 90)}`;\n    });\n  }\n\n  // =========================\n  // 🔁 CORRELATION\n  // =========================\n  const correlationBlock = (c.available && c.similar_count > 0)\n    ? `\\n*🔁 Correlación:* ${c.similar_count} alerta(s) similar(es) en 1h ${c.similar_count >= 3 ? '⚠️ patrón' : ''}`\n    : '';\n\n  // =========================\n  // ☁️ AWS HEALTH\n  // =========================\n  const healthBlock = h.available\n    ? (h.incidents > 0\n      ? `\\n*☁️ AWS Health:* 🔴 ${h.incidents} incidente(s) activo(s)`\n      : `\\n*☁️ AWS Health:* 🟢 Sin incidentes`)\n    : '';\n\n  // =========================\n  // 📖 RUNBOOK\n  // =========================\n  let runbookBlock = '';\n\n  if (rb) {\n    runbookBlock = `\\n*📖 Runbook:* ${rb.id} — ${rb.nombre || ''}`;\n\n    if (rb.diagnostico) {\n      const steps = rb.diagnostico\n        .split('\\n')\n        .map(s => s.trim())\n        .filter(Boolean)\n        .slice(0, 4);\n\n      if (steps.length) {\n        runbookBlock += `\\n*Checklist N1:*`;\n        steps.forEach((s, i) => {\n          runbookBlock += `\\n  ☐ ${i + 1}. ${s.substring(0, 100)}`;\n        });\n      }\n    }\n  } else {\n    runbookBlock = '\\n*📖 Runbook:* _Sin runbook disponible para este tipo de alerta._';\n  }\n\n  const linkBlock = a.monitor_url\n    ? `\\n🔗 <${a.monitor_url}|Abrir monitor>`\n    : '';\n\n  // =========================\n  // 🧠 FINAL MESSAGE (estructura tipo NOC)\n  // =========================\n  const message =\n`${icon} *INCIDENTE AUTOMATIZADO N1*\n━━━━━━━━━━━━━━━━━━━━━━\n*Severidad:* ${severity}   *Estado:* ${a.state}\n*Tipo:* ${typeLabel}\n*Recurso:* ${resource}\n*Región:* ${a.region || 'N/A'}\n*Valor:* ${a.metric_value || 'N/A'}  |  Umbral: ${a.threshold || 'N/A'}\n${metricsBlock}\n${logsBlock}\n${eventsBlock}\n${correlationBlock}\n${healthBlock}\n\n*🧠 Análisis IA*\n${aiAnalysis}\n\n${runbookBlock}\n${linkBlock}\n\n_FYI:_ <@U09DURT23S6> <@U06BU9YU9J6>`;\n  return {\n    json: {\n      ...j,\n      slack_message: message,\n    },\n  };\n});"
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const j = item.json;\n  const ctx = j.enriched_context || {};\n  const a = ctx.alert || {};\n  const m = ctx.metrics || {};\n  const l = ctx.logs || {};\n  const e = ctx.events || {};\n  const c = ctx.correlation || {};\n  const h = ctx.aws_health || {};\n  const rb = ctx.runbook;\n\n  // =========================\n  // 🧠 IA\n  // =========================\n  let aiAnalysis = '_(Sin análisis IA)_';\n  const resp = j.claude_response || j.gemini_response || j.ai_response;\n\n  if (resp) {\n    if (resp.candidates?.[0]?.content?.parts) {\n      aiAnalysis = resp.candidates[0].content.parts.map(p => p.text || '').join('').trim();\n    } else if (resp.choices?.[0]?.message?.content) {\n      aiAnalysis = resp.choices[0].message.content.trim();\n    } else if (resp.content?.[0]?.text) {\n      aiAnalysis = resp.content[0].text.trim();\n    } else if (typeof resp === 'string') {\n      aiAnalysis = resp.trim();\n    }\n  }\n\n  // =========================\n  // 🎯 STATUS\n  // =========================\n  const isCritical = a.state === 'TRIGGERED' || a.state === 'RE-TRIGGERED';\n  const isRecovered = a.state === 'RECOVERED';\n\n  const icon = isRecovered ? '🟢' : isCritical ? '🔴' : '🟡';\n\n  const priorityBadge = {\n    'P1':    '🔴 *[P1 — CRÍTICO]*',\n    'P2':    '🟠 *[P2 — ELEVADO]*',\n    'P3':    '🟡 *[P3]*',\n    'NOISE': '🔕 *[NOISE]*'\n  }[j.priority] || '🟡 *[P3]*';\n\n  const escalateHeader = j.priority === 'P1'\n    ? '\\n🚨 *ESCALAR A N2 AHORA — Condición de umbral superada*'\n    : '';\n\n  const severity =\n    a.severity === 'ALERT' ? 'CRÍTICO' :\n    a.severity === 'WARN' ? 'ADVERTENCIA' :\n    'OK';\n\n  const typeLabel = (a.alert_type || 'UNKNOWN').replace(/_/g, ' ');\n  const resource = Array.isArray(a.resource) ? a.resource.join(', ') : (a.resource || 'N/A');\n\n  // =========================\n  // 📊 METRICS\n  // =========================\n  const metricsBlock = m.available\n    ? `\\n*📊 Métricas (30 min)* → avg: \\`${m.avg}\\` | max: \\`${m.max}\\` | min: \\`${m.min}\\` | trend: \\`${m.trend}\\``\n    : '';\n\n  // =========================\n  // 📜 LOGS (más limpio)\n  // =========================\n  let logsBlock = '';\n  if (l.available && l.samples?.length) {\n    const samples = l.samples.slice(0, 3);\n\n    logsBlock = `\\n*📜 Logs relevantes*`;\n\n    logsBlock += samples.map(log => {\n      const t = log.timestamp?.substring(11, 19) || '??:??:??';\n      const msg = (log.message || '').replace(/\\n/g, ' ').substring(0, 100);\n      return `\\n  • \\`${t}\\` ${msg}`;\n    }).join('');\n  }\n\n  // =========================\n  // 🚀 EVENTS\n  // =========================\n  let eventsBlock = '';\n  if (e.available && (e.deploys?.length || e.changes?.length)) {\n    eventsBlock = `\\n*🚀 Cambios recientes*`;\n\n    (e.deploys || []).slice(0, 2).forEach(d => {\n      eventsBlock += `\\n  • Deploy: ${(d.title || '').substring(0, 90)}`;\n    });\n\n    (e.changes || []).slice(0, 2).forEach(ch => {\n      eventsBlock += `\\n  • Change: ${(ch.title || '').substring(0, 90)}`;\n    });\n  }\n\n  // =========================\n  // 🔁 CORRELATION\n  // =========================\n  const correlationBlock = (c.available && c.similar_count > 0)\n    ? `\\n*🔁 Correlación:* ${c.similar_count} alerta(s) similar(es) en 1h ${c.similar_count >= 3 ? '⚠️ patrón' : ''}`\n    : '';\n\n  // =========================\n  // ☁️ AWS HEALTH\n  // =========================\n  const healthBlock = h.available\n    ? (h.incidents > 0\n      ? `\\n*☁️ AWS Health:* 🔴 ${h.incidents} incidente(s) activo(s)`\n      : `\\n*☁️ AWS Health:* 🟢 Sin incidentes`)\n    : '';\n\n  // =========================\n  // 📖 RUNBOOK\n  // =========================\n  let runbookBlock = '';\n\n  if (rb) {\n    runbookBlock = `\\n*📖 Runbook:* ${rb.id} — ${rb.nombre || ''}`;\n\n    if (rb.diagnostico) {\n      const steps = rb.diagnostico\n        .split('\\n')\n        .map(s => s.trim())\n        .filter(Boolean)\n        .slice(0, 4);\n\n      if (steps.length) {\n        runbookBlock += `\\n*Checklist N1:*`;\n        steps.forEach((s, i) => {\n          runbookBlock += `\\n  ☐ ${i + 1}. ${s.substring(0, 100)}`;\n        });\n      }\n    }\n  } else {\n    runbookBlock = '\\n*📖 Runbook:* _Sin runbook disponible para este tipo de alerta._';\n  }\n\n  const linkBlock = a.monitor_url\n    ? `\\n🔗 <${a.monitor_url}|Abrir monitor>`\n    : '';\n\n  // =========================\n  // 🧠 FINAL MESSAGE (estructura tipo NOC)\n  // =========================\n  const message =\n`${priorityBadge}  ${icon} *INCIDENTE AUTOMATIZADO N1*${escalateHeader}\n━━━━━━━━━━━━━━━━━━━━━━\n*Severidad:* ${severity}   *Estado:* ${a.state}\n*Tipo:* ${typeLabel}\n*Recurso:* ${resource}\n*Región:* ${a.region || 'N/A'}\n*Valor:* ${a.metric_value || 'N/A'}  |  Umbral: ${a.threshold || 'N/A'}\n${metricsBlock}\n${logsBlock}\n${eventsBlock}\n${correlationBlock}\n${healthBlock}\n\n*🧠 Análisis IA*\n${aiAnalysis}\n\n${runbookBlock}\n${linkBlock}\n\n_FYI:_ <@U09DURT23S6> <@U06BU9YU9J6>`;\n  return {\n    json: {\n      ...j,\n      slack_message: message,\n    },\n  };\n});"
       },
       "id": "b8b7e7f7-4466-4433-8078-fa568ff956bf",
       "name": "Construir Mensaje Final",
@@ -717,7 +735,11 @@
             "tokens_used": "={{ ($('Adjuntar respuesta IA').item.json.claude_response?.usage?.input_tokens || 0) + ($('Adjuntar respuesta IA').item.json.claude_response?.usage?.output_tokens || 0) || $('Adjuntar respuesta IA').item.json.claude_response?.usageMetadata?.totalTokenCount || 0 }}",
             "thread_ts": "={{ $('Parsear Alerta').item.json.timestamp }}",
             "channel": "={{ $('Parsear Alerta').item.json.canal }}",
-            "message_preview": "={{ ($('Parsear Alerta').item.json.mensaje || '').substring(0, 200).replace(/\\n/g, ' ') }}"
+            "message_preview": "={{ ($('Parsear Alerta').item.json.mensaje || '').substring(0, 200).replace(/\\n/g, ' ') }}",
+            "priority": "={{ $('Procesar Enriquecimiento').item.json.priority || 'P3' }}",
+            "noise_score": "={{ $('Procesar Enriquecimiento').item.json.noise_score ?? 50 }}",
+            "classification_reason": "={{ $('Procesar Enriquecimiento').item.json.classification_reason || '' }}",
+            "metric_value": "={{ $('Procesar Enriquecimiento').item.json.enriched_context?.alert?.metric_value || '' }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -855,6 +877,42 @@
               "display": true,
               "type": "string",
               "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "noise_score",
+              "displayName": "noise_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "classification_reason",
+              "displayName": "classification_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "metric_value",
+              "displayName": "metric_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
             }
           ]
         },
@@ -875,6 +933,138 @@
         }
       },
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const INHERENTLY_CRITICAL = new Set(['PULSAR_BACKLOG', 'RDS_BLOCKING']);\nconst INHERENTLY_NOISY    = new Set(['FLAP_DETECTION']);\n\nfunction classifyPriority(parsed) {\n  let score   = 50;\n  const why   = [];\n\n  if (INHERENTLY_CRITICAL.has(parsed.alert_type)) {\n    score = Math.min(score, 20);\n    why.push(parsed.alert_type + ' inherently critical');\n  }\n  if (INHERENTLY_NOISY.has(parsed.alert_type)) {\n    score = Math.min(score + 30, 100);\n    why.push('flap detection type');\n  }\n  if (parsed.state === 'RE-TRIGGERED') { score -= 15; why.push('re-triggered (persists)'); }\n  else if (parsed.state === 'WARN')    { score += 10;  why.push('WARN state'); }\n\n  if (parsed.metric_value !== null && parsed.threshold > 0) {\n    const ratio = parsed.metric_value / parsed.threshold;\n    if (ratio > 1.5)      { score -= 25; why.push('metric ' + ratio.toFixed(1) + 'x above threshold'); }\n    else if (ratio < 1.1) { score += 15; why.push('barely above threshold (' + ratio.toFixed(2) + 'x)'); }\n  }\n\n  // Frequency from staticData (last 30 min)\n  const sd  = $getWorkflowStaticData('global');\n  if (!sd.recentFires) sd.recentFires = {};\n  const now = Date.now();\n  Object.keys(sd.recentFires).forEach(k => {\n    if (now - sd.recentFires[k].lastSeen > 30 * 60 * 1000) delete sd.recentFires[k];\n  });\n\n  const res      = Array.isArray(parsed.resource) ? parsed.resource[0] : (parsed.resource || '');\n  const alertKey = (parsed.alert_type || 'UNKNOWN') + '|' + res;\n  const recent   = sd.recentFires[alertKey];\n  if (recent) {\n    const fc = recent.count || 1;\n    if      (fc >= 5) { score += 30; why.push('fired ' + fc + 'x in 30 min (noise)'); }\n    else if (fc >= 3) { score += 20; why.push('fired ' + fc + 'x in 30 min'); }\n    else if (fc >= 2) { score += 10; why.push('fired ' + fc + 'x in 30 min'); }\n  }\n\n  if (!sd.recentFires[alertKey]) sd.recentFires[alertKey] = { count: 0, lastSeen: now };\n  sd.recentFires[alertKey].count    = (sd.recentFires[alertKey].count || 0) + 1;\n  sd.recentFires[alertKey].lastSeen = now;\n\n  score = Math.max(0, Math.min(100, score));\n  const priority =\n    score > 70 ? 'NOISE' :\n    score > 50 ? 'P3'    :\n    score > 30 ? 'P2'    : 'P1';\n\n  return { priority, noise_score: score, classification_reason: why.join('; ') || 'base score' };\n}\n\nreturn $input.all().map(item => {\n  const { priority, noise_score, classification_reason } = classifyPriority(item.json.parsed || {});\n  return { json: { ...item.json, priority, noise_score, classification_reason } };\n});"
+      },
+      "id": "09a9ab37-fbf5-45e2-b9f2-c24475c12431",
+      "name": "Clasificar Prioridad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7060,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "noise-check",
+              "leftValue": "={{ $json.priority }}",
+              "rightValue": "NOISE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "50e06a2c-1540-44dc-bb21-1fe8e7063f5e",
+      "name": "Es NOISE?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        7250,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "reaction",
+        "operation": "add",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $json.canal }}",
+          "mode": "id"
+        },
+        "timestamp": "={{ $json.timestamp }}",
+        "name": "no_bell"
+      },
+      "id": "b8200cea-3bc5-4753-97ca-0f838ebfc4ec",
+      "name": "Slack: Reacción NOISE",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        7450,
+        5000
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "alert_type": "={{ $json.parsed.alert_type || 'UNKNOWN' }}",
+            "state": "={{ $json.parsed.state || 'UNKNOWN' }}",
+            "severity": "={{ $json.parsed.severity || 'UNKNOWN' }}",
+            "resource": "={{ Array.isArray($json.parsed.resource) ? $json.parsed.resource.join(',') : ($json.parsed.resource || 'unknown') }}",
+            "region": "={{ $json.parsed.region || 'N/A' }}",
+            "runbook_id": "={{ $json.runbook_detail?.id || 'NONE' }}",
+            "runbook_source": "auto_mapped",
+            "priority": "NOISE",
+            "noise_score": "={{ $json.noise_score }}",
+            "classification_reason": "={{ $json.classification_reason }}",
+            "metric_value": "={{ $json.parsed.metric_value || '' }}",
+            "response_time_ms": "",
+            "ai_provider": "none",
+            "ai_success": "false",
+            "tokens_used": "0",
+            "thread_ts": "={{ $json.timestamp }}",
+            "channel": "={{ $json.canal }}",
+            "message_preview": "={{ ($json.mensaje || '').substring(0, 200).replace(/\\n/g, ' ') }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "e896e28c-4e9c-4722-a72b-d88dae8dc552",
+      "name": "Sheets: Log NOISE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7650,
+        5000
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account 3"
+        }
+      }
     }
   ],
   "pinData": {
@@ -964,27 +1154,7 @@
       "main": [
         [
           {
-            "node": "DD: Metrics (30min)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DD: Logs (15min)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DD: Events (1h)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Slack: Correlación (1h)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "AWS Health (opcional)",
+            "node": "Clasificar Prioridad",
             "type": "main",
             "index": 0
           }
@@ -1126,6 +1296,60 @@
     "Registrar en Sheets": {
       "main": [
         []
+      ]
+    },
+    "Clasificar Prioridad": {
+      "main": [
+        [
+          {
+            "node": "Es NOISE?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es NOISE?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Reacción NOISE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sheets: Log NOISE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DD: Metrics (30min)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DD: Logs (15min)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DD: Events (1h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Correlación (1h)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AWS Health (opcional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
