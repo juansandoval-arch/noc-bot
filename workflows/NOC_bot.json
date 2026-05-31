@@ -323,7 +323,7 @@
             },
             {
               "name": "tags",
-              "value": "={{ $json.parsed.resource_type ? ($json.parsed.resource_type + ':' + (Array.isArray($json.parsed.resource) ? $json.parsed.resource[0] : $json.parsed.resource)) : '' }}"
+              "value": "={{ (function() { var rt = $json.parsed.resource_type; var r = Array.isArray($json.parsed.resource) ? $json.parsed.resource[0] : $json.parsed.resource; return (rt && r) ? (rt + ':' + r) : undefined; })() }}"
             }
           ]
         },
@@ -337,6 +337,10 @@
             {
               "name": "DD-APPLICATION-KEY",
               "value": "YOUR_DD_APP_KEY"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
             }
           ]
         },
