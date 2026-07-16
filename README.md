@@ -1,93 +1,112 @@
 # NOC Bot
 
-Un bot de respuesta automática para el equipo de operaciones (NOC) construido en n8n. Monitorea un canal de Slack en busca de alertas, las enriquece con datos de Datadog y genera análisis usando Claude AI, respondiendo directamente en el hilo de la alerta.
+An automated alert-response bot for operations teams (NOC) built on n8n. It monitors a Slack channel for incoming alerts, enriches them with observability data from Datadog, and generates AI-powered analysis using Claude — responding directly in the alert thread.
 
 ---
 
-## ¿Qué hace?
+## What it does
 
-El bot ejecuta el siguiente flujo de forma programada:
+The bot runs on a schedule and executes the following flow automatically:
 
-1. **Lectura de Slack** — Lee el historial del canal NOC buscando mensajes no respondidos.
-2. **Parseo de alertas** — Identifica y estructura las alertas activas.
-3. **Enriquecimiento con Datadog** — Consulta en paralelo:
-   - Métricas de los últimos 30 minutos
-   - Logs de los últimos 15 minutos
-   - Eventos de la última hora
-4. **Correlación en Slack** — Busca mensajes relacionados en la última hora.
-5. **AWS Health** *(opcional)* — Consulta el estado de servicios AWS.
-6. **Análisis con Claude AI** — Envía todo el contexto a Claude para generar un diagnóstico y recomendación.
-7. **Respuesta en hilo** — Publica el análisis en el hilo de la alerta original en Slack.
-8. **Registro en Google Sheets** — Guarda cada alerta procesada para auditoría y métricas.
-
----
-
-## Arquitectura
-
-Ver [`docs/architecture.md`](docs/architecture.md) para el diagrama detallado del flujo.
+1. **Slack reading** — Reads the NOC channel history looking for unanswered alerts.
+2. **Alert parsing** — Identifies and structures active alerts into clean data objects.
+3. **Datadog enrichment** — Queries in parallel:
+   - Metrics from the last 30 minutes
+   - Logs from the last 15 minutes
+   - Events from the last hour
+4. **Slack correlation** — Searches for related messages in the last hour.
+5. **AWS Health** *(optional)* — Checks the status of AWS services.
+6. **Claude AI analysis** — Sends all enriched context to Claude to generate a diagnosis and recommended action.
+7. **Thread reply** — Posts the analysis directly in the original alert thread on Slack.
+8. **Google Sheets logging** — Records every processed alert for auditing and metrics.
 
 ---
 
-## Instalación
+## Architecture
 
-### Requisitos previos
+See [`docs/architecture.md`](docs/architecture.md) for the detailed flow diagram.
 
-- [n8n](https://n8n.io/) (self-hosted o cloud)
-- Cuenta de Datadog con acceso a la API
-- Bot de Slack con permisos de lectura/escritura en el canal NOC
-- Google Sheets API habilitada
-- API key de Anthropic (Claude)
+---
 
-### Pasos
+## Tech stack
 
-1. Clona este repositorio:
+- **n8n** — Workflow orchestration (self-hosted or cloud)
+- **Slack API** — Alert ingestion and response
+- **Datadog API** — Metrics, logs, and event enrichment
+- **Anthropic Claude API** — AI-powered root cause analysis
+- **Google Sheets API** — Audit logging
+- **AWS Health API** *(optional)* — Infrastructure health context
+
+---
+
+## Installation
+
+### Prerequisites
+
+- [n8n](https://n8n.io/) (self-hosted or cloud)
+- Datadog account with API access
+- Slack bot with read/write permissions on the NOC channel
+- Google Sheets API enabled
+- Anthropic API key (Claude)
+
+### Steps
+
+1. Clone this repository:
    ```bash
    git clone https://github.com/juansandoval-arch/noc-bot.git
    cd noc-bot
    ```
 
-2. Copia el archivo de variables de entorno y complétalo:
+2. Copy the environment variables template and fill it in:
    ```bash
    cp .env.example .env
-   # Edita .env con tus credenciales reales
+   # Edit .env with your real credentials
    ```
 
-3. Importa el workflow en n8n:
-   - Ve a **Workflows → Import from file**
-   - Selecciona `workflows/NOC_bot.json`
+3. Import the workflow into n8n:
+   - Go to **Workflows → Import from file**
+   - Select `workflows/NOC_bot.json`
 
-4. Configura las credenciales en n8n:
-   - **Slack**: OAuth2 o Bot Token con scopes `channels:history`, `chat:write`
+4. Configure credentials in n8n:
+   - **Slack**: OAuth2 or Bot Token with `channels:history`, `chat:write` scopes
    - **Datadog**: API Key + Application Key
-   - **Google Sheets**: Service Account o OAuth2
+   - **Google Sheets**: Service Account or OAuth2
    - **Anthropic (Claude)**: API Key via HTTP Header Auth
 
-5. Activa el workflow.
+5. Activate the workflow.
 
 ---
 
-## Variables de entorno
+## Environment variables
 
-| Variable | Descripción |
+| Variable | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | API key de Anthropic para Claude |
-| `DD_API_KEY` | API key de Datadog |
-| `DD_APP_KEY` | Application key de Datadog |
-| `DD_SITE` | Sitio de Datadog (ej. `datadoghq.com`) |
-| `SLACK_CHANNEL_ID` | ID del canal Slack que monitorea el bot |
-| `GOOGLE_SHEET_ID` | ID de la hoja de cálculo para el registro de alertas |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude |
+| `DD_API_KEY` | Datadog API key |
+| `DD_APP_KEY` | Datadog Application key |
+| `DD_SITE` | Datadog site (e.g. `datadoghq.com`) |
+| `SLACK_CHANNEL_ID` | ID of the Slack channel to monitor |
+| `GOOGLE_SHEET_ID` | ID of the Google Sheet for alert logging |
 
 ---
 
-## Estructura del repositorio
+## Repository structure
 
 ```
 noc-bot/
 ├── workflows/
-│   └── NOC_bot.json      # Workflow de n8n (importar directamente)
+│   └── NOC_bot.json      # n8n workflow (import directly)
 ├── docs/
-│   └── architecture.md   # Diagrama y descripción de la arquitectura
-├── .env.example          # Plantilla de variables de entorno
+│   └── architecture.md   # Flow diagram and architecture description
+├── .env.example          # Environment variables template
 ├── .gitignore
 └── README.md
 ```
+
+---
+
+## Use case
+
+Built for operations teams that receive high volumes of infrastructure alerts in Slack and need to triage them quickly. The bot eliminates manual enrichment — instead of an engineer spending 8+ minutes gathering metrics, logs, and context, the bot does it in seconds and presents a structured AI diagnosis in the alert thread.
+
+**Result:** Near-zero manual response time for routine alerts. Engineers focus only on alerts that require human judgment.
